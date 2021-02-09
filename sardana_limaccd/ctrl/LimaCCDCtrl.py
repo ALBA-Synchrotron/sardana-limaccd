@@ -276,6 +276,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
             for keyword in keywords:
                 key, value = keyword.split(':')
                 if key.lower() == 'index':
+                    value = value.split('d')[0]
                     index_format = '%{0}d'.format(value)
                     idx_fmt = value
                     self._limaccd.write_attribute('saving_index_format',
