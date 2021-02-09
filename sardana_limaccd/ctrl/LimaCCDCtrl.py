@@ -290,8 +290,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
 
             self._limaccd.write_attribute('saving_prefix', prefix)
 
-            # TODO: include scheme
-            image_pattern = '{dir}/{prefix}{{0:{idx_fmt}}}{suffix}'
+            image_pattern = 'file://{dir}/{prefix}{{0:{idx_fmt}}}{suffix}'
             self._image_pattern = image_pattern.format(dir=directory,
                                                        prefix=prefix,
                                                        idx_fmt=idx_fmt,
