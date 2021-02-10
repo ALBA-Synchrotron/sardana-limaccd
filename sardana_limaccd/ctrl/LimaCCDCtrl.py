@@ -322,8 +322,12 @@ class LimaCCDTwoDController(TwoDController, Referable):
                     or not flg_same_index_fmt:
                 self._limaccd.write_attribute('saving_prefix', prefix)
 
-            image_pattern = 'file://{dir}/{prefix}{{0:{idx_fmt}}}{suffix}'
-            self._image_pattern = image_pattern.format(dir=directory,
+            scheme = 'file'
+            if format == 'HDF5':
+                scheme = 'h5file'
+            image_pattern = '{scheme}://{dir}/{prefix}{{0:{idx_fmt}}}{suffix}'
+            self._image_pattern = image_pattern.format(scheme=scheme,
+                                                       dir=directory,
                                                        prefix=prefix,
                                                        idx_fmt=idx_fmt,
                                                        suffix=suffix)
