@@ -240,8 +240,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
             self._limaccd.write_attribute('saving_mode', 'AUTO_FRAME')
 
             # TODO: Improve regexp matching
-
-            # Configure directory
+            # Extract saving configuration from the pattern
             try:
                 dir_fp = re.findall('\://(.*?)$',
                                     self._value_ref_pattern)[0]
@@ -249,12 +248,13 @@ class LimaCCDTwoDController(TwoDController, Referable):
             except Exception:
                 raise ValueError('Wrong value_ref_pattern')
 
+            # Saving directory
             directory, file_pattern = os.path.split(dir_fp)
-            self._limaccd.write_attribute('saving_directory', directory)
 
+            # Suffix
             file_pattern, suffix = os.path.splitext(file_pattern)
 
-            # Configure saving format:
+            # Validate suffix
             # TODO: verified if the format is allowed by the plug-in
             suffix_valid = False
             for format, extensions in LIMA_EXT_FORMAT.items():
@@ -262,12 +262,12 @@ class LimaCCDTwoDController(TwoDController, Referable):
                     suffix_valid = True
                     break
             if not suffix_valid:
+                # TODO: Investigate if the acquisition fails in case of
+                #  Exception
                 raise ValueError('The extension used {} is not '
                                  'valid'.format(suffix))
-            self._limaccd.write_attribute('saving_format', format)
-            self._limaccd.write_attribute('saving_suffix', suffix)
 
-            # Extract the index format
+            # Index format
             try:
                 keywords = re.findall('{(.*?)}', file_pattern)
             except Exception:
@@ -276,22 +276,58 @@ class LimaCCDTwoDController(TwoDController, Referable):
             for keyword in keywords:
                 key, value = keyword.split(':')
                 if key.lower() == 'index':
+                    value = value.split('d')[0]
                     index_format = '%{0}d'.format(value)
                     idx_fmt = value
-                    self._limaccd.write_attribute('saving_index_format',
-                                                  index_format)
 
-            # Extract the index format
+            # Prefix
             try:
                 prefix = re.findall('(.*?){', file_pattern)[0]
             except Exception:
                 raise ValueError('Wrong value_ref_pattern')
 
-            self._limaccd.write_attribute('saving_prefix', prefix)
+            # Check if the new configuration is different to the current
+            # one, the LimaCCD restart to 0 the saving_next_number when the
+            # prefix is written. To avoid this behaviour the controller will
+            # write the values if they are different.
+            curr_dir = self._limaccd.read_attribute('saving_directory').value
+            flg_same_dir = True
+            if curr_dir != directory:
+                self._limaccd.write_attribute('saving_directory', directory)
+                flg_same_dir = False
 
-            # TODO: include scheme
-            image_pattern = '{dir}/{prefix}{{0:{idx_fmt}}}{suffix}'
-            self._image_pattern = image_pattern.format(dir=directory,
+            curr_format = self._limaccd.read_attribute('saving_format').value
+            flg_same_format = True
+            if curr_format != format:
+                self._limaccd.write_attribute('saving_format', format)
+                flg_same_format = False
+
+            curr_suffix = self._limaccd.read_attribute('saving_suffix').value
+            flg_same_suffix = True
+            if curr_suffix != suffix:
+                self._limaccd.write_attribute('saving_suffix', suffix)
+                flg_same_suffix = False
+
+            curr_index_fmt = self._limaccd.read_attribute(
+                'saving_index_format').value
+            flg_same_index_fmt = True
+            if curr_index_fmt != index_format:
+                self._limaccd.write_attribute('saving_index_format',
+                                              index_format)
+                flg_same_index_fmt = False
+
+            curr_prefix = self._limaccd.read_attribute('saving_prefix').value
+            if curr_prefix != prefix or not flg_same_dir \
+                    or not flg_same_format or not flg_same_suffix \
+                    or not flg_same_index_fmt:
+                self._limaccd.write_attribute('saving_prefix', prefix)
+
+            scheme = 'file'
+            if format == 'HDF5':
+                scheme = 'h5file'
+            image_pattern = '{scheme}://{dir}/{prefix}{{0:{idx_fmt}}}{suffix}'
+            self._image_pattern = image_pattern.format(scheme=scheme,
+                                                       dir=directory,
                                                        prefix=prefix,
                                                        idx_fmt=idx_fmt,
                                                        suffix=suffix)
