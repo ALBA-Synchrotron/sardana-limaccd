@@ -78,6 +78,9 @@ class LimaCCDTwoDController(TwoDController, Referable):
         'LimaCCDDeviceName': {Type: str, Description: 'Detector device name'},
         'LatencyTime': {Type: float,
                         Description: 'Maximum latency time'},
+        'FirstImageNumber': {Type: int,
+                             Description: 'First value of the saving next ' \
+                                          'number'}
         }
 
     ctrl_attributes = {
@@ -292,6 +295,17 @@ class LimaCCDTwoDController(TwoDController, Referable):
             self._limaccd.write_attribute('saving_suffix', suffix)
             self._limaccd.write_attribute('saving_index_format', index_format)
             self._limaccd.write_attribute('saving_prefix', prefix)
+
+            # Allow to set the First Image Number to any value different to
+            # 0, default value on LimaCCDs after writing the prefix with
+            # saving mode in Abort
+            if self.FirstImageNumber != 0:
+                saving_next_number = \
+                    self._limaccd.read_attribute('saving_next_number')
+                if saving_next_number == 0:
+                    self._limaccd.write_attribute('saving_next_number',
+                                                  self.FirstImageNumber)
+
 
             scheme = 'file'
             if format == 'HDF5':
