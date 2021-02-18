@@ -328,8 +328,6 @@ class LimaCCDTwoDController(TwoDController, Referable):
 
         self._limaccd.write_attributes(attrs_values)
         self._prepareAcq()
-        self._image_next_number = \
-            self._limaccd.read_attribute('saving_next_number').value
 
     def LoadOne(self, axis, integ_time, repetitions, latency_time):
 
@@ -352,8 +350,6 @@ class LimaCCDTwoDController(TwoDController, Referable):
 
         self._limaccd.write_attributes(attrs_values)
         self._prepareAcq()
-        self._image_next_number = \
-            self._limaccd.read_attribute('saving_next_number').value
         self._skipp_start = False
         self._started_flg = False
 
@@ -364,6 +360,8 @@ class LimaCCDTwoDController(TwoDController, Referable):
         self._log.debug("Start Acquisition")
         self._limaccd.startAcq()
         self._started_flg = True
+        self._image_next_number = \
+            self._limaccd.read_attribute('saving_next_number').value
 
     def ReadOne(self, axis):
         # TODO: Implement on future version
