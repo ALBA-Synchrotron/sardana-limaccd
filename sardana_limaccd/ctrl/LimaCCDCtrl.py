@@ -286,41 +286,12 @@ class LimaCCDTwoDController(TwoDController, Referable):
             except Exception:
                 raise ValueError('Wrong value_ref_pattern')
 
-            # Check if the new configuration is different to the current
-            # one, the LimaCCD restart to 0 the saving_next_number when the
-            # prefix is written. To avoid this behaviour the controller will
-            # write the values if they are different.
-            curr_dir = self._limaccd.read_attribute('saving_directory').value
-            flg_same_dir = True
-            if curr_dir != directory:
-                self._limaccd.write_attribute('saving_directory', directory)
-                flg_same_dir = False
-
-            curr_format = self._limaccd.read_attribute('saving_format').value
-            flg_same_format = True
-            if curr_format != format:
-                self._limaccd.write_attribute('saving_format', format)
-                flg_same_format = False
-
-            curr_suffix = self._limaccd.read_attribute('saving_suffix').value
-            flg_same_suffix = True
-            if curr_suffix != suffix:
-                self._limaccd.write_attribute('saving_suffix', suffix)
-                flg_same_suffix = False
-
-            curr_index_fmt = self._limaccd.read_attribute(
-                'saving_index_format').value
-            flg_same_index_fmt = True
-            if curr_index_fmt != index_format:
-                self._limaccd.write_attribute('saving_index_format',
-                                              index_format)
-                flg_same_index_fmt = False
-
-            curr_prefix = self._limaccd.read_attribute('saving_prefix').value
-            if curr_prefix != prefix or not flg_same_dir \
-                    or not flg_same_format or not flg_same_suffix \
-                    or not flg_same_index_fmt:
-                self._limaccd.write_attribute('saving_prefix', prefix)
+            # Writing saving paramiters
+            self._limaccd.write_attribute('saving_directory', directory)
+            self._limaccd.write_attribute('saving_format', format)
+            self._limaccd.write_attribute('saving_suffix', suffix)
+            self._limaccd.write_attribute('saving_index_format', index_format)
+            self._limaccd.write_attribute('saving_prefix', prefix)
 
             scheme = 'file'
             if format == 'HDF5':
