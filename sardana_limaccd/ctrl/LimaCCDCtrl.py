@@ -298,12 +298,30 @@ class LimaCCDTwoDController(TwoDController, Referable):
             self._limaccd.write_attribute('saving_format', format)
             self._limaccd.write_attribute('saving_suffix', suffix)
             self._limaccd.write_attribute('saving_index_format', index_format)
+            if self.FirstImageNumber != 0:
+                self._limaccd.write_attribute('saving_next_number', -1)
+                time.sleep(0.05)
             self._limaccd.write_attribute('saving_prefix', prefix)
             # After to write the prefix with saving mode = ABORT,
             # the LimaCCDs takes some seconds to update the saving next
             # number, this time depends of the number of files on the folder
             # with the same pattern. For that reason the controller will
             # change the first saving next number on the first start.
+
+            # Allow to set the First Image Number to any value different to
+            # 0, default value on LimaCCDs after writing the prefix with
+            # saving mode in Abort
+            if self.FirstImageNumber != 0:
+                t0 = time.time()
+                saving_next_number = -1
+                while saving_next_number == -1 or time.time() - t0 < 2.5:
+                    saving_next_number = \
+                        self._limaccd.read_attribute(
+                            'saving_next_number').value
+                    if saving_next_number == 0:
+                        self._limaccd.write_attribute('saving_next_number',
+                                                      self.FirstImageNumber)
+                    time.sleep(0.03)
 
             scheme = 'file'
             if format == 'HDF5':
@@ -339,6 +357,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
                         ['acq_trigger_mode', acq_trigger_mode]]
 
         self._limaccd.write_attributes(attrs_values)
+
         self._prepareAcq()
 
     def LoadOne(self, axis, integ_time, repetitions, latency_time):
@@ -368,18 +387,6 @@ class LimaCCDTwoDController(TwoDController, Referable):
     def StartOne(self, axis, value):
         if self._skipp_start and self._started_flg:
             return
-
-        if not self._first_start:
-            # Allow to set the First Image Number to any value different to
-            # 0, default value on LimaCCDs after writing the prefix with
-            # saving mode in Abort
-            if self.FirstImageNumber != 0:
-                saving_next_number = \
-                    self._limaccd.read_attribute('saving_next_number').value
-                if saving_next_number == 0:
-                    self._limaccd.write_attribute('saving_next_number',
-                                                  self.FirstImageNumber)
-            self._first_start = True
 
         self._log.debug("Start Acquisition")
         self._limaccd.startAcq()
