@@ -123,9 +123,10 @@ class LimaCCDTwoDController(TwoDController, Referable):
         'SavingMode': {
             Type: str,
             Description: 'LimaCCD attribute saving_mode. The controller will'
-                         'set it to MANUAL on the startup.',
+                         'set it to AUTO_FRAME by default.',
             Access: DataAccess.ReadWrite,
-            Memorize: NotMemorized},
+            Memorize: NotMemorized,
+            DefaultValue: 'AUTO_FRAME'},
         'SavingNextNumber': {
             Type: int,
             Description: 'LimaCCD attribute saving_next_number',
@@ -135,7 +136,8 @@ class LimaCCDTwoDController(TwoDController, Referable):
             Type: str,
             Description: 'LimaCCD attribute saving_overwrite_policy',
             Access: DataAccess.ReadWrite,
-            Memorize: Memorized},
+            Memorize: Memorized,
+            DefaultValue: 'ABORT'},
         'SavingFormatsAllowed': {
             Type:  [str, ],
             Description: 'Detector SavingModes allowed saving_suffix',
