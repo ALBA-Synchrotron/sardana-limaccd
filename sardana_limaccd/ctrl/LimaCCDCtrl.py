@@ -301,7 +301,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
             # saving mode in Abort
             if self.FirstImageNumber != 0:
                 saving_next_number = \
-                    self._limaccd.read_attribute('saving_next_number')
+                    self._limaccd.read_attribute('saving_next_number').value
                 if saving_next_number == 0:
                     self._limaccd.write_attribute('saving_next_number',
                                                   self.FirstImageNumber)
