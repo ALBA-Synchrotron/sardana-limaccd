@@ -225,7 +225,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
         if acq_ready not in ['Ready', 'Running']:
             state = State.Fault
             status = 'The LimaCCD state is: {0}'.format(acq_ready)
-        elif acq_ready == 'Running' or images_to_save:
+        elif (acq_ready == 'Running' or images_to_save) and not self._aborted_flg:
             state = State.Moving
             status = 'The LimaCCD is acquiring'
         else:
