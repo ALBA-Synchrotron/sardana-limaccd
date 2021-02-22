@@ -1,22 +1,4 @@
-#
-# http://www.tango-controls.org/static/sardana/latest/doc/html/index.html
-#
-# Copyright 2019 CELLS / ALBA Synchrotron, Bellaterra, Spain
-#
-# Sardana is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Sardana is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with Sardana.  If not, see <http://www.gnu.org/licenses/>.
-#
-###############################################################################
+
 import PyTango
 from sardana import State
 from sardana.pool.controller import Type, Access, Description, Memorize, \
@@ -41,27 +23,27 @@ class LimaRoICounterCtrl(CounterTimerController):
     ctrl_properties = {
         'LimaROIDeviceName': {Type: str, Description: 'Name of the roicounter '
                                                       'lima device'},
-        'LimaROIBufferSize': {Type: long, Description: 'Circular buffer size '
-                                                       'in image'}
+        'LimaROIBufferSize': {Type: int, Description: 'Circular buffer size '
+                                                      'in image'}
     }
 
     axis_attributes = {
-        'RoIx1': {Type: long,
+        'RoIx1': {Type: int,
                   Description: 'Start pixel X',
                   Access: DataAccess.ReadWrite,
                   Memorize: Memorized
                   },
-        'RoIx2': {Type: long,
+        'RoIx2': {Type: int,
                   Description: 'End pixel X',
                   Access: DataAccess.ReadWrite,
                   Memorize: Memorized
                   },
-        'RoIy1': {Type: long,
+        'RoIy1': {Type: int,
                   Description: 'Start pixel Y',
                   Access: DataAccess.ReadWrite,
                   Memorize: Memorized
                   },
-        'RoIy2': {Type: long,
+        'RoIy2': {Type: int,
                   Description: 'End pixel Y',
                   Access: DataAccess.ReadWrite,
                   Memorize: Memorized
@@ -89,7 +71,7 @@ class LimaRoICounterCtrl(CounterTimerController):
             raise RuntimeError('__init__(): Could not create a device proxy '
                                'from following device name: %s.\nException: '
                                '%s ' % (self.LimaROIDeviceName, e))
-        
+
         self._limaroi.Stop()
         self._limaroi.clearAllRois()
         self._limaroi.Start()
@@ -107,7 +89,8 @@ class LimaRoICounterCtrl(CounterTimerController):
         self._abort_flg = False
 
         # event_type = PyTango.EventType.PERIODIC_EVENT
-        # self._callback_id = self._limaroi.subscribe_event('state', event_type,
+        # self._callback_id = self._limaroi.subscribe_event('state',
+        #                                                   event_type,
         #                                                   self._callback)
         self._log.debug("__init__(%s, %s): Leaving...", repr(inst),
                         repr(props))
@@ -130,7 +113,7 @@ class LimaRoICounterCtrl(CounterTimerController):
         if state == 'ON':
             return
         self._limaroi.Start()
-        for axis in self._rois.keys():
+        for axis in list(self._rois.keys()):
             self._create_roi(axis)
         self._recreate_flg = True
 
@@ -145,7 +128,7 @@ class LimaRoICounterCtrl(CounterTimerController):
     def AddDevice(self, axis):
         self._rois[axis] = {}
         roi_name = 'roi_%d' % axis
-        self._rois[axis]['name'] = roi_name 
+        self._rois[axis]['name'] = roi_name
         self._rois[axis]['roi'] = [0, 0, 1, 1]
         self._data_buff[axis] = []
         self._create_roi(axis)
@@ -155,7 +138,7 @@ class LimaRoICounterCtrl(CounterTimerController):
         self._rois.pop(axis)
         roi_id = self._rois[axis]['id']
         self._rois_id.pop(roi_id)
-        
+
     def StateAll(self):
         attr = 'CounterStatus'
         if self._abort_flg:
@@ -170,7 +153,7 @@ class LimaRoICounterCtrl(CounterTimerController):
             self._status = 'Taking data'
         else:
             self._state = State.On
-            #self._clean_acquisition()
+            # self._clean_acquisition()
             if self._last_image_ready == -2:
                 self._status = "Not images in buffer"
             else:
@@ -187,8 +170,8 @@ class LimaRoICounterCtrl(CounterTimerController):
         elif self._synchronization == AcqSynch.HardwareTrigger:
             self._repetitions = repetitions
         else:
-            raise ValueError('LimaRoICoTiCtrl allows only Software or Hardware '
-                             'triggering')
+            raise ValueError('LimaRoICoTiCtrl allows only Software or '
+                             'Hardware triggering')
 
     def StartAll(self):
         self._start = True
@@ -199,7 +182,7 @@ class LimaRoICounterCtrl(CounterTimerController):
 
     def ReadAll(self):
         self._log.debug("ReadAll: Entering")
-        for axis in self._data_buff.keys():
+        for axis in list(self._data_buff.keys()):
             self._data_buff[axis] = []
         if self._last_image_ready != self._last_image_read:
             if not self._synchronization == AcqSynch.SoftwareTrigger:
@@ -223,15 +206,18 @@ class LimaRoICounterCtrl(CounterTimerController):
         self._log.debug("ReadOne: Entering")
         try:
             if self._synchronization == AcqSynch.SoftwareTrigger:
+                # ReadOne is called even before the acquisition or the
+                # calculation has finished because ctctrl reads to have
+                # readings of the counter evolution
                 if len(self._data_buff[axis]) == 0:
                     raise Exception('Acquisition did not finish correctly.')
                 value = self._data_buff[axis][0]
             else:
                 value = self._data_buff[axis]
-        except Exception, e:
+        except Exception as e:
             self._log.error("ReadOne %r" % e)
         self._log.debug("ReadOne return %r" % value)
-        return value
+        return int(value)
 
     def GetAxisExtraPar(self, axis, name):
         name = name.lower()
