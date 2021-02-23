@@ -314,7 +314,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
             if self.FirstImageNumber != 0:
                 t0 = time.time()
                 saving_next_number = -1
-                while saving_next_number == -1 or time.time() - t0 < 2.5:
+                while saving_next_number == -1 and time.time() - t0 < 2.5:
                     saving_next_number = \
                         self._limaccd.read_attribute(
                             'saving_next_number').value
