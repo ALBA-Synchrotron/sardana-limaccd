@@ -481,7 +481,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
         elif parameter == "shape":
             data = self._limaccd.read_attributes(("image_width", "image_height"))
             return data[0].value, data[1].value
-        return super().GetAxisPar(axis, parameter)
+        return super(LimaCCDTwoDController, self).GetAxisPar(axis, parameter)
 
     def SetAxisPar(self, axis, parameter, value):
         if parameter == "value_ref_pattern":
