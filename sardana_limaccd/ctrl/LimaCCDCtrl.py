@@ -473,6 +473,16 @@ class LimaCCDTwoDController(TwoDController, Referable):
 #                Axis Extra Attribute Methods
 ###############################################################################
 
+    def GetAxisPar(self, axis, parameter):
+        if parameter == "value_ref_pattern":
+            return self._value_ref_pattern
+        elif parameter == "value_ref_enabled":
+            return self._value_ref_enabled
+        elif parameter == "shape":
+            data = self._limaccd.read_attributes(("image_width", "image_height"))
+            return data[0].value, data[1].value
+        return super(LimaCCDTwoDController, self).GetAxisPar(axis, parameter)
+
     def SetAxisPar(self, axis, parameter, value):
         if parameter == "value_ref_pattern":
             self._value_ref_pattern = value
