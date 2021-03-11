@@ -24,21 +24,26 @@
 import re
 import os
 import time
-import PyTango
+import struct
+import logging
+
+import numpy
+import tango
+
 from sardana import State
-from sardana.pool.controller import TwoDController, Type, Description, \
-    Access, DataAccess, Memorize, NotMemorized, Memorized, DefaultValue, \
-    MaxDimSize, AcqSynch, Referable
+from sardana.pool.controller import TwoDController, OneDController, \
+    Type, Description, Access, DataAccess, Memorize, NotMemorized, Memorized, \
+    DefaultValue, MaxDimSize, AcqSynch, Referable
 
 
 __author__ = 'Roberto Javier Homs Puron'
 __copyright__ = 'Copyright 2019 CELLS / ALBA Synchrotron, Bellaterra, Spain'
 __docformat__ = "restructuredtext"
 
-__all__ = ['LimaCCDTwoDController']
+__all__ = ['LimaCCDTwoDController', 'LimaCCDOneDController']
 
 
-LIMA_ATTRS = {'cameramode': 'camera_mode',
+LIMA_ATTRS = {'cameramodel': 'camera_model',
               'cameratype': 'camera_type',
               'savingcommonheader': 'saving_common_header',
               'savingframeperfile': 'saving_frame_per_file',
@@ -58,121 +63,144 @@ LIMA_EXT_FORMAT = {'EDF': ['.edf'],
                    'TIFF': ['.tiff']}
 
 
-class LimaCCDTwoDController(TwoDController, Referable):
-    """
-    Generic LimaCCD 2D Sardana Controller based on SEP2. This controller
-    will work only with reference value as first version. That is why the
-    method ReadOne is not implemented and it is not possible to
-    use pseudo-counter.
-    """
+CTRL_PROPERTIES = {
+    'LimaCCDDeviceName': {Type: str, Description: 'Detector device name'},
+    'LatencyTime': {Type: float, Description: 'Maximum latency time'},
+    'FirstImageNumber': {Type: int,
+                         Description: 'First value of the saving next number'}
+}
 
-    gender = "LimaController"
-    model = "Basic"
-    organization = "CELLS - ALBA"
-    image = "Lima_ctrl.png"
-    logo = "ALBA_logo.png"
+CTRL_ATTRIBUTES = {
+    'CameraModel': {
+        Type: str,
+        Description: 'LimaCCD attribute camera_model',
+        Access: DataAccess.ReadOnly,
+        Memorize: NotMemorized},
+    'CameraType': {
+        Type: str,
+        Description: 'LimaCCD attribute camera_type',
+        Access: DataAccess.ReadOnly,
+        Memorize: NotMemorized},
+    'SavingCommonHeader': {
+        Type: [str, ],
+        Description: 'LimaCCD attribute saving_common_header',
+        Access: DataAccess.ReadWrite,
+        Memorize: Memorized},
+    'SavingFramePerFile': {
+        Type: int,
+        Description: 'LimaCCD attribute saving_frame_per_file',
+        Access: DataAccess.ReadWrite,
+        Memorize: Memorized,
+        DefaultValue: 1},
+    'SavingHeaderDelimiter': {
+        Type: [str, ],
+        Description: 'LimaCCD attribute saving_header_delimiter',
+        Access: DataAccess.ReadWrite,
+        Memorize: Memorized},
+    'SavingManagedMode': {
+        Type: str,
+        Description: 'LimaCCD attribute saving_managed_mode',
+        Access: DataAccess.ReadWrite,
+        Memorize: Memorized},
+    'SavingMaxWritingTask': {
+        Type: int,
+        Description: 'LimaCCD attribute saving_max_writing_task',
+        Access: DataAccess.ReadWrite,
+        Memorize: Memorized},
+    'SavingMode': {
+        Type: str,
+        Description: 'LimaCCD attribute saving_mode. The controller will'
+                     'set it to AUTO_FRAME by default.',
+        Access: DataAccess.ReadWrite,
+        Memorize: NotMemorized,
+        DefaultValue: 'AUTO_FRAME'},
+    'SavingNextNumber': {
+        Type: int,
+        Description: 'LimaCCD attribute saving_next_number',
+        Access: DataAccess.ReadWrite,
+        Memorize: Memorized},
+    'SavingOverwritePolicy': {
+        Type: str,
+        Description: 'LimaCCD attribute saving_overwrite_policy',
+        Access: DataAccess.ReadWrite,
+        Memorize: Memorized,
+        DefaultValue: 'ABORT'},
+    'SavingFormatsAllowed': {
+        Type:  [str, ],
+        Description: 'Detector SavingModes allowed saving_suffix',
+        Access: DataAccess.ReadOnly,
+        Memorize: NotMemorized},
+    'SavingImageHeaders': {
+        Type: [str, ],
+        Description: 'Headers for each image',
+        Access: DataAccess.ReadWrite,
+        Memorize: NotMemorized,
+        MaxDimSize: (1000000,)},
+    }
 
-    MaxDevice = 1
 
-    ctrl_properties = {
-        'LimaCCDDeviceName': {Type: str, Description: 'Detector device name'},
-        'LatencyTime': {Type: float,
-                        Description: 'Maximum latency time'},
-        'FirstImageNumber': {Type: int,
-                             Description: 'First value of the saving next ' \
-                                          'number'}
-        }
+class LimaImageFormat(struct.Struct):
 
-    ctrl_attributes = {
-        'CameraModel': {
-            Type: str,
-            Description: 'LimaCCD attribute camera_model',
-            Access: DataAccess.ReadOnly,
-            Memorize: NotMemorized},
-        'CameraType': {
-            Type: str,
-            Description: 'LimaCCD attribute camera_type',
-            Access: DataAccess.ReadOnly,
-            Memorize: NotMemorized},
-        'SavingCommonHeader': {
-            Type: [str, ],
-            Description: 'LimaCCD attribute saving_common_header',
-            Access: DataAccess.ReadWrite,
-            Memorize: Memorized},
-        'SavingFramePerFile': {
-            Type: int,
-            Description: 'LimaCCD attribute saving_frame_per_file',
-            Access: DataAccess.ReadWrite,
-            Memorize: Memorized,
-            DefaultValue: 1},
-        'SavingHeaderDelimiter': {
-            Type: [str, ],
-            Description: 'LimaCCD attribute saving_header_delimiter',
-            Access: DataAccess.ReadWrite,
-            Memorize: Memorized},
-        'SavingManagedMode': {
-            Type: str,
-            Description: 'LimaCCD attribute saving_managed_mode',
-            Access: DataAccess.ReadWrite,
-            Memorize: Memorized},
-        'SavingMaxWritingTask': {
-            Type: int,
-            Description: 'LimaCCD attribute saving_max_writing_task',
-            Access: DataAccess.ReadWrite,
-            Memorize: Memorized},
-        'SavingMode': {
-            Type: str,
-            Description: 'LimaCCD attribute saving_mode. The controller will'
-                         'set it to AUTO_FRAME by default.',
-            Access: DataAccess.ReadWrite,
-            Memorize: NotMemorized,
-            DefaultValue: 'AUTO_FRAME'},
-        'SavingNextNumber': {
-            Type: int,
-            Description: 'LimaCCD attribute saving_next_number',
-            Access: DataAccess.ReadWrite,
-            Memorize: Memorized},
-        'SavingOverwritePolicy': {
-            Type: str,
-            Description: 'LimaCCD attribute saving_overwrite_policy',
-            Access: DataAccess.ReadWrite,
-            Memorize: Memorized,
-            DefaultValue: 'ABORT'},
-        'SavingFormatsAllowed': {
-            Type:  [str, ],
-            Description: 'Detector SavingModes allowed saving_suffix',
-            Access: DataAccess.ReadOnly,
-            Memorize: NotMemorized},
-        'SavingImageHeaders': {
-            Type: [str, ],
-            Description: 'Headers for each image',
-            Access: DataAccess.ReadWrite,
-            Memorize: NotMemorized,
-            MaxDimSize: (1000000,)},
-        }
+    Magic = 0x44544159
+    DTypes = ('u1', 'u2', 'u4', None, 'i1', 'i2', 'i4')
+    DTypeSize = (1, 2, 4, None, 1, 2, 4)
 
-    axis_attributes = {}
+    def __init__(self):
+        super().__init__('<IHHIIHHHHHHHHIIIIIIII')
 
-    def __init__(self, inst, props, *args, **kwargs):
-        TwoDController.__init__(self, inst, props, *args, **kwargs)
-        # self._log.debug("__init__(%s, %s): Entering...", repr(inst),
-        #                 repr(props))
 
+    def decode(self, buff, n=1):
+        header = self.unpack_from(buff)
+        magic, version, hsize, cat, typ, big_endian, ndim, d1, d2 = header[:9]
+        assert magic == self.Magic
+        assert version == 2
+        assert hsize == self.size
+        dtype = self.DTypes[typ]
+        pixel_size = self.DTypeSize[typ]
+        nb_pixels = d1 * d2
+        frame_size = nb_pixels * pixel_size
+        frame_data_size = hsize + frame_size
+        # Reasonable assumption: all frames have the same format
+        frames = []
+        for i in range(n):
+            offset = i * frame_data_size + hsize
+            frame = numpy.frombuffer(
+                buff, count=nb_pixels, dtype=dtype, offset=offset
+            )
+            frame.shape = d1, d2
+            frames.append(frame)
+        return frames
+
+
+LIMA_DECODER = LimaImageFormat()
+
+
+def read_lima_frames(dev, frame_start, frame_end):
+    fmt, buff = dev.command_inout('readImageSeq', (frame_start, frame_end))
+    assert fmt == 'DATA_ARRAY'
+    return LIMA_DECODER.decode(buff, n=frame_end - frame_start)
+
+
+class Lima:
+    """LimaCCD Controller helper class"""
+
+    def __init__(self, device_name, latency_time, first_image_nb=0, log=None):
+        self._log = log if log else logging.getLogger("Lima")
         try:
-            self._limaccd = PyTango.DeviceProxy(self.LimaCCDDeviceName)
+            self._limaccd = tango.DeviceProxy(device_name)
             self._limaccd.reset()
-        except PyTango.DevFailed as e:
+        except tango.DevFailed as e:
             raise RuntimeError('__init__(): Could not create a device proxy '
                                'from following device name: %s.\nException: '
-                               '%s ' % (self.LimaCCDDeviceName, e))
+                               '%r ' % (device_name, e))
 
-        self._latency_time = self.LatencyTime
+        self._latency_time = latency_time
+        self._first_image_nb = first_image_nb
         self._synchronization = AcqSynch.SoftwareTrigger
         self._value_ref_pattern = ''
         self._value_ref_enabled = False
         self._skipp_load = False
         self._skipp_start = False
-        self._return_seq = False
         self._last_image_read = -1
         self._image_next_number = 0
         self._new_data = False
@@ -181,6 +209,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
         self._first_start = False
         self._image_pattern = ''
         self._nb_frames = 0
+        self.return_seq = False
 
         # Get the Detector Saving Modes allowed
         formats = self._limaccd.command_inout('getAttrStringValueList',
@@ -190,7 +219,6 @@ class LimaCCDTwoDController(TwoDController, Referable):
     def _clean_variables(self):
         self._skipp_load = False
         self._skipp_start = False
-        self._return_seq = False
         self._new_data = False
         self._aborted_flg = False
         self._started_flg = False
@@ -198,6 +226,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
         self._last_image_read = -1
         self._image_next_number = 0
         self._nb_frames = 0
+        self.return_seq = False
 
     def _prepareAcq(self):
         self._limaccd.prepareAcq()
@@ -212,28 +241,38 @@ class LimaCCDTwoDController(TwoDController, Referable):
         if axis != 1:
             raise ValueError('This controller only have the axis 1')
 
+    READY = State.On, 'The LimaCCD is ready to acquire'
+    MOVING = State.Moving, 'The LimaCCD is acquiring'
+
     def StateOne(self, axis):
-        acq_ready = self._limaccd.read_attribute('acq_status').value
-
-        attr = 'last_image_saved'
-        new_image_ready = self._limaccd.read_attribute(attr).value
-
-        images_to_save = False
-        if new_image_ready == -1 or new_image_ready < self._nb_frames - 1:
-            images_to_save = True
-
-        if acq_ready not in ['Ready', 'Running']:
-            state = State.Fault
-            status = 'The LimaCCD state is: {0}'.format(acq_ready)
-        elif (acq_ready == 'Running' or images_to_save) and not self._aborted_flg:
-            state = State.Moving
-            status = 'The LimaCCD is acquiring'
+        attrs = 'acq_status', 'last_image_saved', 'last_image_ready'
+        acq_status, saved, ready = [
+            a.value
+            for a in self._limaccd.read_attributes(attrs)
+        ]
+        self._log.debug(
+            "status=%s | acquired=%d saved=%d", acq_status, ready, saved
+        )
+        if acq_status not in {'Ready', 'Running'}:
+            result = State.Fault, 'The LimaCCD state is: {}'.format(acq_status)
         else:
-            state = State.On
-            status = 'The LimaCCD is ready to acquire'
+            if self._value_ref_enabled:
+                images_to_save = False
+                if saved == -1 or saved < self._nb_frames - 1:
+                    images_to_save = True
 
-        self._log.debug('Status: {0}'.format(status))
-        return state, status
+                if (acq_status == 'Running' or images_to_save) and not self._aborted_flg:
+                    result = self.MOVING
+                else:
+                    result = self.READY
+            else:
+                if acq_status == 'Running' or ready < self._nb_frames - 1:
+                    result = self.MOVING
+                else:
+                    result = self.READY
+
+        self._log.debug('Status: %s', result[1])
+        return result
 
     def PrepareOne(self, axis, value, repetitions, latency, nb_starts):
         self._clean_variables()
@@ -298,7 +337,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
             self._limaccd.write_attribute('saving_format', format)
             self._limaccd.write_attribute('saving_suffix', suffix)
             self._limaccd.write_attribute('saving_index_format', index_format)
-            if self.FirstImageNumber != 0:
+            if self._first_image_nb != 0:
                 self._limaccd.write_attribute('saving_next_number', -1)
                 time.sleep(0.05)
             self._limaccd.write_attribute('saving_prefix', prefix)
@@ -311,7 +350,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
             # Allow to set the First Image Number to any value different to
             # 0, default value on LimaCCDs after writing the prefix with
             # saving mode in Abort
-            if self.FirstImageNumber != 0:
+            if self._first_image_nb != 0:
                 t0 = time.time()
                 saving_next_number = -1
                 while saving_next_number == -1 and time.time() - t0 < 2.5:
@@ -320,7 +359,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
                             'saving_next_number').value
                     if saving_next_number == 0:
                         self._limaccd.write_attribute('saving_next_number',
-                                                      self.FirstImageNumber)
+                                                      self._first_image_nb)
                     time.sleep(0.03)
 
             scheme = 'file'
@@ -332,6 +371,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
                                                        prefix=prefix,
                                                        idx_fmt=idx_fmt,
                                                        suffix=suffix)
+
         # Configure the acquisition if the synchronization mode is not
         # software trigger or software gate. For this case the acquisition
         # will configure point per point on load one
@@ -341,7 +381,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
 
         self._skipp_load = True
         self._skipp_start = True
-        self._return_seq = True
+        self.return_seq = True
         if self._synchronization == AcqSynch.SoftwareStart:
             acq_trigger_mode = 'Internal_trigger'
         elif self._synchronization == AcqSynch.HardwareStart:
@@ -368,7 +408,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
 
         # Configure acquisition for the case of Software Trigger/Gate.
         self._clean_variables()
-        self._return_seq = False
+        self.return_seq = False
         acq_nb_frames = 1
         acq_expo_time = integ_time
         latency_time = latency_time
@@ -396,15 +436,25 @@ class LimaCCDTwoDController(TwoDController, Referable):
             self._limaccd.read_attribute('saving_next_number').value
 
     def ReadOne(self, axis):
-        # TODO: Implement on future version
-        raise NotImplementedError()
+        ready = self._limaccd.read_attribute('last_image_ready').value
+        if not self.return_seq:
+            # Case of use: synchronization by Software Trigger/Gate
+            frames = read_lima_frames(self._limaccd, ready, ready + 1)
+            return frames[0]
+        else:
+            if self._last_image_read == ready:
+                return []
+            frames = read_lima_frames(self._limaccd, self._last_image_read + 1, ready + 1)
+            self._last_image_read += len(frames)
+            self._image_next_number += len(frames)
+            return frames
 
     def RefOne(self, axis):
         # TODO: check if it is possible to use last_image_saved instead of
         #  last_image_ready
         attr = 'last_image_saved'
         new_image_ready = self._limaccd.read_attribute(attr).value
-        if not self._return_seq:
+        if not self.return_seq:
             # Case of use: synchronization by Software Trigger/Gate
             image_next_number = self._image_next_number + new_image_ready
             image_ref = self._image_pattern.format(image_next_number)
@@ -420,6 +470,11 @@ class LimaCCDTwoDController(TwoDController, Referable):
                 self._image_next_number += 1
                 images_refs.append(image_ref)
             return images_refs
+
+    def StopOne(self, axis):
+        self._log.debug('StopOne in')
+        self._aborted_flg = True
+        self._limaccd.stopAcq()
 
     def AbortOne(self, axis):
         self._log.debug('AbortOne in')
@@ -448,7 +503,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
             self._log.debug(e)
         self._limaccd.setImageHeader(values)
 
-    def SetCtrlPar(self, parameter, value):
+    def SetCtrlPar(self, parameter, value, default_func):
         self._log.debug('SetCtrlPar %s %s' % (parameter, value))
         param = parameter.lower()
         if param in LIMA_ATTRS:
@@ -456,16 +511,16 @@ class LimaCCDTwoDController(TwoDController, Referable):
             self._log.debug('Set %s = %s' % (attr, value))
             self._limaccd.write_attribute(attr, value)
         else:
-            super(LimaCCDTwoDController, self).SetCtrlPar(parameter, value)
+            default_func(parameter, value)
 
-    def GetCtrlPar(self, parameter):
+    def GetCtrlPar(self, parameter, default_func):
         param = parameter.lower()
         if param in LIMA_ATTRS:
             # TODO: Verify instrument_name attribute
             attr = LIMA_ATTRS[param]
             value = self._limaccd.read_attribute(attr).value
         else:
-            value = super(LimaCCDTwoDController, self).GetCtrlPar(parameter)
+            value = default_func(parameter)
 
         return value
 
@@ -473,7 +528,7 @@ class LimaCCDTwoDController(TwoDController, Referable):
 #                Axis Extra Attribute Methods
 ###############################################################################
 
-    def GetAxisPar(self, axis, parameter):
+    def GetAxisPar(self, axis, parameter, default_func):
         if parameter == "value_ref_pattern":
             return self._value_ref_pattern
         elif parameter == "value_ref_enabled":
@@ -481,10 +536,179 @@ class LimaCCDTwoDController(TwoDController, Referable):
         elif parameter == "shape":
             data = self._limaccd.read_attributes(("image_width", "image_height"))
             return data[0].value, data[1].value
-        return super(LimaCCDTwoDController, self).GetAxisPar(axis, parameter)
+        return default_func(axis, parameter)
 
-    def SetAxisPar(self, axis, parameter, value):
+    def SetAxisPar(self, axis, parameter, value, default_func):
         if parameter == "value_ref_pattern":
             self._value_ref_pattern = value
         elif parameter == "value_ref_enabled":
             self._value_ref_enabled = value
+        else:
+            default_func(axis, parameter, value)
+
+
+class LimaCCDTwoDController(TwoDController, Referable):
+    """
+    Generic LimaCCD 2D Sardana Controller based on SEP2.
+    """
+
+    gender = "Lima"
+    model = "2D"
+    organization = "CELLS - ALBA"
+    image = "Lima_ctrl.png"
+    logo = "ALBA_logo.png"
+
+    MaxDevice = 1
+
+    ctrl_properties = {k: dict(v) for k, v in CTRL_PROPERTIES.items()}
+    ctrl_attributes = {k: dict(v) for k, v in CTRL_ATTRIBUTES.items()}
+    axis_attributes = {}
+
+    def __init__(self, inst, props, *args, **kwargs):
+        TwoDController.__init__(self, inst, props, *args, **kwargs)
+        self._device = Lima(
+            self.LimaCCDDeviceName, self.LatencyTime,
+            self.FirstImageNumber, self._log
+        )
+
+    def GetAxisAttributes(self, axis):
+        attrs = super().GetAxisAttributes(axis)
+        attrs['Value'][MaxDimSize] = 2*[2**16]
+        return attrs
+
+    def AddDevice(self, axis):
+        return self._device.AddDevice(axis)
+
+    def StateOne(self, axis):
+        return self._device.StateOne(axis)
+
+    def PrepareOne(self, axis, value, repetitions, latency, nb_starts):
+        return self._device.PrepareOne(axis, value, repetitions, latency, nb_starts)
+
+    def LoadOne(self, axis, integ_time, repetitions, latency_time):
+        return self._device.LoadOne(axis, integ_time, repetitions, latency_time)
+
+    def StartOne(self, axis, value):
+        return self._device.StartOne(axis, value)
+
+    def ReadOne(self, axis):
+        return self._device.ReadOne(axis)
+
+    def RefOne(self, axis):
+        return self._device.RefOne(axis)
+
+    def StopOne(self, axis):
+        self._device.StopOne(axis)
+
+    def AbortOne(self, axis):
+        self._device.AbortOne(axis)
+
+    def getSavingFormatsAllowed(self):
+        return self._device.getSavingFormatsAllowed()
+
+    def getSavingImageHeaders(self):
+        return self._device.getSavingImageHeaders()
+
+    def setSavingImageHeaders(self, values):
+        return self._device.setSavingImageHeaders(values)
+
+    def SetCtrlPar(self, parameter, value):
+        self._device.SetCtrlPar(parameter, value, super().SetCtrlPar)
+
+    def GetCtrlPar(self, parameter):
+        return self._device.GetCtrlPar(parameter, super().GetCtrlPar)
+
+    def GetAxisPar(self, axis, parameter):
+        return self._device.GetAxisPar(axis, parameter, super().GetAxisPar)
+
+    def SetAxisPar(self, axis, parameter, value):
+        self._device.SetAxisPar(axis, parameter, value, super().SetAxisPar)
+
+
+class LimaCCDOneDController(OneDController, Referable):
+    """
+    Generic LimaCCD 1D Sardana Controller.
+    """
+
+    gender = "Lima"
+    model = "1D"
+    organization = "CELLS - ALBA"
+    image = "Lima_ctrl.png"
+    logo = "ALBA_logo.png"
+
+    MaxDevice = 1
+
+    ctrl_properties = {k: dict(v) for k, v in CTRL_PROPERTIES.items()}
+    ctrl_attributes = {k: dict(v) for k, v in CTRL_ATTRIBUTES.items()}
+    axis_attributes = {}
+
+    def __init__(self, inst, props, *args, **kwargs):
+        OneDController.__init__(self, inst, props, *args, **kwargs)
+        self._device = Lima(
+            self.LimaCCDDeviceName, self.LatencyTime,
+            self.FirstImageNumber, self._log
+        )
+
+    def GetAxisAttributes(self, axis):
+        attrs = super().GetAxisAttributes(axis)
+        attrs['Value'][MaxDimSize] = [2**16]
+        return attrs
+
+    def AddDevice(self, axis):
+        return self._device.AddDevice(axis)
+
+    def StateOne(self, axis):
+        return self._device.StateOne(axis)
+
+    def PrepareOne(self, axis, value, repetitions, latency, nb_starts):
+        return self._device.PrepareOne(axis, value, repetitions, latency, nb_starts)
+
+    def LoadOne(self, axis, integ_time, repetitions, latency_time):
+        return self._device.LoadOne(axis, integ_time, repetitions, latency_time)
+
+    def StartOne(self, axis, value):
+        return self._device.StartOne(axis, value)
+
+    def ReadOne(self, axis):
+        data = self._device.ReadOne(axis)
+        if self._device.return_seq:
+            for frame in data:
+                frame.shape = frame.shape[0]
+        else:
+            data.shape = data.shape[0]
+        return data
+
+    def RefOne(self, axis):
+        return self._device.RefOne(axis)
+
+    def StopOne(self, axis):
+        self._device.StopOne(axis)
+
+    def AbortOne(self, axis):
+        self._device.AbortOne(axis)
+
+    def getSavingFormatsAllowed(self):
+        return self._device.getSavingFormatsAllowed()
+
+    def getSavingImageHeaders(self):
+        return self._device.getSavingImageHeaders()
+
+    def setSavingImageHeaders(self, values):
+        return self._device.setSavingImageHeaders(values)
+
+    def SetCtrlPar(self, parameter, value):
+        self._device.SetCtrlPar(parameter, value, super().SetCtrlPar)
+
+    def GetCtrlPar(self, parameter):
+        return self._device.GetCtrlPar(parameter, super().GetCtrlPar)
+
+    def GetAxisPar(self, axis, parameter):
+        value = self._device.GetAxisPar(axis, parameter, super().GetAxisPar)
+        if parameter.lower() == "shape":
+            width, height = value
+            assert height == 1
+            value = [width]
+        return value
+
+    def SetAxisPar(self, axis, parameter, value):
+        self._device.SetAxisPar(axis, parameter, value, super().SetAxisPar)
