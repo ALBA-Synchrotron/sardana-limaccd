@@ -275,6 +275,8 @@ class Lima:
         return result
 
     def PrepareOne(self, axis, value, repetitions, latency, nb_starts):
+        self._log.debug("PrepareOne v=%s rep=%s lat=%s nb_starts=%s",
+            value, repetitions, latency, nb_starts)
         self._clean_variables()
 
         acq_nb_frames = repetitions * nb_starts
@@ -401,7 +403,8 @@ class Lima:
         self._prepareAcq()
 
     def LoadOne(self, axis, integ_time, repetitions, latency_time):
-
+        self._log.debug("LoadOne t=%s rep=%s lat=%s",
+            integ_time, repetitions, latency_time)
         if self._skipp_load:
             # PrepareOne configured the acquisition
             return
