@@ -148,7 +148,6 @@ class LimaImageFormat(struct.Struct):
     def __init__(self):
         super().__init__('<IHHIIHHHHHHHHIIIIIIII')
 
-
     def decode(self, buff, n=1):
         header = self.unpack_from(buff)
         magic, version, hsize, cat, typ, big_endian, ndim, d1, d2 = header[:9]
@@ -435,19 +434,28 @@ class Lima:
         self._limaccd.startAcq()
         self._started_flg = True
 
-        self._image_next_number = \
-            self._limaccd.read_attribute('saving_next_number').value
+        if self._value_ref_enabled:
+            self._image_next_number = \
+                self._limaccd.read_attribute('saving_next_number').value
+        else:
+            self._image_next_number = 0
 
     def ReadOne(self, axis):
-        ready = self._limaccd.read_attribute('last_image_ready').value
+        last_image_ready = self._limaccd.read_attribute('last_image_ready').value
         if not self.return_seq:
             # Case of use: synchronization by Software Trigger/Gate
-            frames = read_lima_frames(self._limaccd, ready, ready + 1)
+            if self._image_next_number > last_image_ready:
+                raise ValueError(
+                    "Data for point {} not ready yet".format(self._image_next_number)
+                )
+            frames = read_lima_frames(
+                self._limaccd, self._image_next_number, self._image_next_number + 1)
+            self._image_next_number += 1
             return frames[0]
         else:
-            if self._last_image_read == ready:
+            if self._last_image_read == last_image_ready:
                 return []
-            frames = read_lima_frames(self._limaccd, self._last_image_read + 1, ready + 1)
+            frames = read_lima_frames(self._limaccd, self._last_image_read + 1, last_image_ready + 1)
             self._last_image_read += len(frames)
             self._image_next_number += len(frames)
             return frames
