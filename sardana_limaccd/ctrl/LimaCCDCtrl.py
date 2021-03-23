@@ -271,13 +271,11 @@ class LimaCtrlMixin(object):
             self._acquisition.prepare()
 
     def StartOne(self, axis, value):
-        self._log.info("StartOne %s %s", axis, value)
+        pass
 
     def StartAll(self):
         trigger_mode = self._acquisition["acq_trigger_mode"]
         self._log.info("StartAll trig=%s", trigger_mode)
-        if not "INTERNAL" in trigger_mode:
-            return
         self._acquisition.start()
 
     def ReadAll(self):
