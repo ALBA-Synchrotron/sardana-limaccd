@@ -245,7 +245,7 @@ class Saving(object):
             self.lima["saving_prefix"] = config["saving_prefix"]
             t0 = time.monotonic()
             saving_next_number = -1
-            # After settinge the prefix with saving mode = ABORT,
+            # After setting the prefix with saving mode = ABORT,
             # the LimaCCDs takes some seconds to update the saving next
             # number, this time depends of the number of files on the folder
             # with the same pattern. For that reason the controller will
