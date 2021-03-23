@@ -240,7 +240,7 @@ class Saving(object):
         names, values = zip(*config.items())
         self.lima[names] = values
         if self.first_image_nb != 0:
-            self.lima["saving_index_next_number"] = -1
+            self.lima["saving_next_number"] = -1
             time.sleep(0.05) # empirical value?
             self.lima["saving_prefix"] = config["saving_prefix"]
             t0 = time.monotonic()
