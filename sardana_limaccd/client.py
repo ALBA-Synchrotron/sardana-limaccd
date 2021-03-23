@@ -24,7 +24,7 @@ class LimaImageFormat(struct.Struct):
     DTypeSize = (1, 2, 4, None, 1, 2, 4)
 
     def __init__(self):
-        super().__init__("<IHHIIHHHHHHHHIIIIIIII")
+        super(LimaImageFormat, self).__init__("<IHHIIHHHHHHHHIIIIIIII")
 
     def decode(self, buff, n=1):
         header = self.unpack_from(buff)
