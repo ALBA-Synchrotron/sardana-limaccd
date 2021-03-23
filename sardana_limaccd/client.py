@@ -1,9 +1,20 @@
+import os
+import re
 import time
 import struct
 import logging
 
 import numpy
 import tango
+
+
+# TODO: Include the other formats
+LIMA_EXT_FORMAT = {
+    'EDF': ['.edf'],
+    'HDF5': ['.h5', '.hdf5'],
+    'CBF': ['.cbf'],
+    'TIFF': ['.tiff']
+}
 
 
 class LimaImageFormat(struct.Struct):
@@ -33,7 +44,7 @@ class LimaImageFormat(struct.Struct):
             frame = numpy.frombuffer(
                 buff, count=nb_pixels, dtype=dtype, offset=offset
             )
-            frame.shape = d1, d2
+            frame.shape = d2, d1
             frames.append(frame)
         return frames
 
@@ -41,23 +52,86 @@ class LimaImageFormat(struct.Struct):
 LIMA_DECODER = LimaImageFormat()
 
 
-class Acquisition:
+def saving_for_pattern(pattern):
+    # TODO: Improve regexp matching
+    # Extract saving configuration from the pattern
+    try:
+        dir_fp = re.findall('\://(.*?)$', pattern)[0]
+    except Exception as error:
+        raise ValueError('Wrong pattern: {0!r}'.format(error))
 
-    def __init__(self, lima, nb_frames, expo_time, latency, trigger_mode):
+    # Saving directory
+    directory, file_pattern = os.path.split(dir_fp)
+
+    # Suffix
+    file_pattern, suffix = os.path.splitext(file_pattern)
+
+    # Validate suffix
+    # TODO: verified if the format is allowed by the plug-in
+    suffix_valid = False
+    for fmt, extensions in LIMA_EXT_FORMAT.items():
+        if suffix in extensions:
+            suffix_valid = True
+            break
+    if not suffix_valid:
+        # TODO: Investigate if the acquisition fails in case of
+        #  Exception
+        raise ValueError('The extension {0!r} is not valid'.format(suffix))
+
+    # Index format
+    try:
+        keywords = re.findall('{(.*?)}', file_pattern)
+    except Exception:
+        raise ValueError('Wrong value_ref_pattern')
+
+    for keyword in keywords:
+        key, value = keyword.split(':')
+        if key.lower() == 'index':
+            value = value.split('d')[0]
+            index_format = '%{0}d'.format(value)
+            idx_fmt = value
+
+    # Prefix
+    try:
+        prefix = re.findall('(.*?){', file_pattern)[0]
+    except Exception:
+        raise ValueError('Wrong value_ref_pattern')
+
+    return {
+        "saving_directory": directory,
+        "saving_format": fmt,
+        "saving_index_format": index_format,
+        "saving_suffix": suffix,
+        "saving_prefix": prefix,
+    }
+
+
+class Acquisition(object):
+    """Store information about a specific acquisition"""
+
+    def __init__(self, lima, nb_frames, expo_time, latency_time, trigger_mode):
         self.lima = lima
+        trigger_mode = trigger_mode.upper()
         self.config = {
             "acq_nb_frames": nb_frames,
             "acq_expo_time": expo_time,
             "latency_time": latency_time,
-            "acq_trigger_mode": trigger_mode.upper()
+            "acq_trigger_mode": trigger_mode
         }
+        self.stopped = False
         self._acq_next_number = 0
         self._save_next_number = 0
         self._last_saved_number = -1
-        self.stopped = False
+        self.nb_starts = 0
 
     def __getitem__(self, name):
         return self.lima[name]
+
+    def is_int_trig(self):
+        return self.config["acq_trigger_mode"] == "INTERNAL_TRIGGER"
+
+    def is_int_trig_multi(self):
+        return self.config["acq_trigger_mode"] == "INTERNAL_TRIGGER_MULTI"
 
     def stop(self):
         self.lima("stopAcq")
@@ -77,22 +151,25 @@ class Acquisition:
 
     def start(self):
         self.lima("startAcq")
+        self.nb_starts += 1
         if self.lima.saving.enabled:
             # buggy: for low exp_time the next number might be after
             # a few frames already saved
             self._save_next_number = self.lima["saving_next_number"]
 
-    @property
-    def status(self):
-        status, saved, acquired = self[
-            "acq_status", "last_image_saved", "last_image_ready"
-        ]
-        if status not in {"Ready", "Running"}:
-            return status
-        ready = saved if self.lima.saving.enabled else acquired
-        if ready < self.nb_frames - 1:
-            status = "Running"
-        return status
+    def calc_status(self, acq_status, ready_for_next, idx_ready, idx_saved):
+        if acq_status not in {"Ready", "Running"}:
+            return acq_status
+        if self.stopped:
+            return "Ready"
+        done = idx_saved if self.lima.saving.enabled else idx_ready
+        if done < self.config["acq_nb_frames"] - 1:
+            acq_status = "Running"
+        trig_mode = self.config["acq_trigger_mode"]
+        if ready_for_next and self.is_int_trig_multi() and acq_status == "Running":
+            if (idx_ready + 1) >= self.nb_starts:
+                acq_status = "Ready"
+        return acq_status
 
     def next_frame(self):
         last = self['last_image_ready']
@@ -109,7 +186,7 @@ class Acquisition:
         start = self._acq_next_number
         if start > last:
             # no frame available yet
-            []
+            return []
         frames = self.lima.read_frames(start, last + 1)
         self._acq_next_number += len(frames)
         return frames
@@ -130,29 +207,18 @@ class Acquisition:
         self._last_saved_number += n
         return refs
 
-class Saving:
+
+class Saving(object):
 
     FILE_PATTERN = \
-        "{scheme}://{saving_directory}/{saving_prefix}{index}{suffix}"
+        "{scheme}://{saving_directory}/{saving_prefix}{index}{saving_suffix}"
 
     def __init__(self, lima):
         self.lima = lima
         self.first_image_nb = 0
-        self.config = {
-            "saving_stream_active": True,
-            "saving_directory": "",
-            "saving_format": "RAW",
-            "saving_index_format": "%04d",
-            "saving_suffix": "",
-            "saving_prefix": "",
-            "saving_mode": "MANUAL",
-            "saving_overwrite_policy": "ABORT",
-        }
-
-    @property
-    def enabled(self):
-        return self.config["saving_stream_active"] and \
-            self.config["saving_directory"]
+        self.enabled = False
+        self.pattern = ""
+        self.config = {}
 
     def filename(self, index):
         scheme = "file"
@@ -164,14 +230,30 @@ class Saving:
         )
 
     def prepare(self):
-        names, values = zip(*self.config.items())
+        if not self.enabled:
+            self.config = {"saving_mode": "MANUAL"}
+            self.lima["saving_mode"] = "MANUAL"
+            return
+        self.config = config = saving_for_pattern(self.pattern)
+        config["saving_mode"] = "AUTO_FRAME"
+        config["saving_overwrite_policy"] = "ABORT"
+        names, values = zip(*config.items())
         self.lima[names] = values
-        if self.first_image_nb != 0 and self.enabled:
+        if self.first_image_nb != 0:
             self.lima["saving_index_next_number"] = -1
-            time.sleep(0.05)
-            self.lima["saving_prefix"] = self.config["saving_prefix"]
+            time.sleep(0.05) # empirical value?
+            self.lima["saving_prefix"] = config["saving_prefix"]
             t0 = time.monotonic()
             saving_next_number = -1
+            # After settinge the prefix with saving mode = ABORT,
+            # the LimaCCDs takes some seconds to update the saving next
+            # number, this time depends of the number of files on the folder
+            # with the same pattern. For that reason the controller will
+            # change the first saving next number on the first start.
+
+            # Allow to set the First Image Number to any value different to
+            # 0, default value on LimaCCDs after writing the prefix with
+            # saving mode in Abort
             while saving_next_number == -1 and time.monotonic() - t0 < 2.5:
                 saving_next_number = self.lima["saving_next_number"]
                 if saving_next_number == 0:
@@ -179,7 +261,7 @@ class Saving:
                 time.sleep(0.03)
 
 
-class Lima:
+class Lima(object):
     """LimaCCD Controller helper class"""
 
     CAPABILITIES = "saving_format", "acq_trigger_mode"
@@ -189,6 +271,7 @@ class Lima:
         self._device_name = device_name
         self._device = None
         self._capabilities = None
+        self.saving = Saving(self)
 
     def __call__(self, name, *args):
         return self.device.command_inout(name, *args)
@@ -208,8 +291,7 @@ class Lima:
     @property
     def device(self):
         if self._device is None:
-            device = tango.DeviceProxy(self.device_name)
-            device.reset()
+            device = tango.DeviceProxy(self._device_name)
             self._device = device
         return self._device
 
@@ -222,14 +304,20 @@ class Lima:
             }
         return self._capabilities
 
-    def acquisition(self, nb_frames, expo_time):
-        return Acquisition(self, nb_frames, expo_time)
+    def acquisition(self, nb_frames, expo_time, latency_time, trigger_mode):
+        return Acquisition(
+            self, nb_frames, expo_time, latency_time, trigger_mode,
+        )
 
     def read_frames(self, frame_start, frame_end):
         fmt, buff = self("readImageSeq", (frame_start, frame_end))
         assert fmt == "DATA_ARRAY"
         return LIMA_DECODER.decode(buff, n=frame_end - frame_start)
 
-
-
-
+    def get_status(self):
+        return self[
+            "acq_status",
+            "ready_for_next_image",
+            "last_image_ready",
+            "last_image_saved"
+        ]
