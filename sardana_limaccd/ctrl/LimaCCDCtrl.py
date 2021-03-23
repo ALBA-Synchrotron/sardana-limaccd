@@ -191,6 +191,7 @@ class LimaCtrlMixin(object):
         self._ctrl_class = ctrl_class
         self._lima = Lima(self.LimaCCDDeviceName,  self._log)
         self._lima.saving.first_image_nb = self.FirstImageNumber
+        self._latency_time = self.LatencyTime
         self._acquisition = None
         try:
             self._lima("reset")
@@ -211,7 +212,7 @@ class LimaCtrlMixin(object):
         if self.MasterTrigger and not self.is_start_synch:
             return custom_latency
         else:
-            return self.LatencyTime
+            return self._latency_time
 
     def calc_trigger_mode(self):
         trigger_mode = TRIGGER_MAP[self._synchronization]
