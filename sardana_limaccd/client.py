@@ -243,7 +243,8 @@ class Saving(object):
             self.lima["saving_next_number"] = -1
             time.sleep(0.05) # empirical value?
             self.lima["saving_prefix"] = config["saving_prefix"]
-            t0 = time.monotonic()
+            monotonic = getattr(time, "monotonic", time.time)
+            t0 = monotonic()
             saving_next_number = -1
             # After setting the prefix with saving mode = ABORT,
             # the LimaCCDs takes some seconds to update the saving next
@@ -254,7 +255,7 @@ class Saving(object):
             # Allow to set the First Image Number to any value different to
             # 0, default value on LimaCCDs after writing the prefix with
             # saving mode in Abort
-            while saving_next_number == -1 and time.monotonic() - t0 < 2.5:
+            while saving_next_number == -1 and monotonic() - t0 < 2.5:
                 saving_next_number = self.lima["saving_next_number"]
                 if saving_next_number == 0:
                     self.lima["saving_next_number"] = self.first_image_nb
