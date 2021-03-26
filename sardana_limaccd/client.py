@@ -127,6 +127,9 @@ class Acquisition(object):
     def __getitem__(self, name):
         return self.lima[name]
 
+    @property
+    def saving(self):
+        return self.lima.saving
     def is_int_trig(self):
         return self.config["acq_trigger_mode"] == "INTERNAL_TRIGGER"
 
@@ -145,14 +148,14 @@ class Acquisition(object):
         names, values = zip(*self.config.items())
         self.lima[names] = values
         self.lima("prepareAcq")
-        if self.lima.saving.enabled:
+        if self.saving.enabled:
             while self["last_image_saved"] != -1:
                 time.sleep(0.01)
 
     def start(self):
         self.lima("startAcq")
         self.nb_starts += 1
-        if self.lima.saving.enabled:
+        if self.saving.enabled:
             # buggy: for low exp_time the next number might be after
             # a few frames already saved
             self._save_next_number = self.lima["saving_next_number"]
@@ -162,7 +165,7 @@ class Acquisition(object):
             return acq_status
         if self.stopped:
             return "Ready"
-        done = idx_saved if self.lima.saving.enabled else idx_ready
+        done = idx_saved if self.saving.enabled else idx_ready
         if done < self.config["acq_nb_frames"] - 1:
             acq_status = "Running"
         trig_mode = self.config["acq_trigger_mode"]
@@ -194,13 +197,13 @@ class Acquisition(object):
     def next_ref_frame(self):
         last = self["last_image_saved"]
         n = self._save_next_number + last
-        return self.lima.saving.filename(n)
+        return self.saving.filename(n)
 
     def next_ref_frames(self):
         last = self["last_image_saved"]
         n = last - self._last_saved_number
         refs = [
-            self.lima.saving.filename(self._save_next_number + i)
+            self.saving.filename(self._save_next_number + i)
             for i in range(n)
         ]
         self._save_next_number += n
