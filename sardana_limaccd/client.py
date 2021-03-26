@@ -123,6 +123,14 @@ class Acquisition(object):
         self._save_next_number = 0
         self._last_saved_number = -1
         self.nb_starts = 0
+        self.is_int_trig = trigger_mode.startswith("INTERNAL")
+        self.is_int_trig_start = trigger_mode == "INTERNAL_TRIGGER"
+        self.is_int_trig_multi = trigger_mode == "INTERNAL_TRIGGER_MULTI"
+        self.is_ext_trig = trigger_mode.startswith("EXTERNAL")
+        self.is_ext_trig_start = trigger_mode == "EXTERNAL_TRIGGER"
+        self.is_ext_trig_multi = trigger_mode == "EXTERNAL_TRIGGER_MULTI"
+        self.is_ext_gate = trigger_mode == "EXTERNAL_GATE"
+        self.is_hw_trig = self.is_ext_trig or self.is_ext_gate
 
     def __getitem__(self, name):
         return self.lima[name]
