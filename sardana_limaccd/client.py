@@ -106,29 +106,62 @@ def saving_for_pattern(pattern):
     }
 
 
+class Trigger:
+
+    # ideally this would be an Enum but we need to support py 2.x
+
+    def __init__(self, mode):
+        self.mode = mode.upper()
+
+    def __eq__(self, mode):
+        if isinstance(mode, Trigger):
+            mode = mode.mode
+        return self.mode == mode
+
+    @property
+    def is_internal(self):
+        return self.mode.startswith("INTERNAL")
+
+    @property
+    def is_internal_start(self):
+        return self.mode == "INTERNAL_TRIGGER"
+
+    @property
+    def is_internal_multi(self):
+        return self.mode == "INTERNAL_TRIGGER_MULTI"
+
+    @property
+    def is_external(self):
+        return self.mode.startswith("EXTERNAL")
+
+    @property
+    def is_external_start(self):
+        return self.mode == "EXTERNAL_TRIGGER"
+
+    @property
+    def is_external_multi(self):
+        return self.mode == "EXTERNAL_TRIGGER_MULTI"
+
+    @property
+    def is_external_gate(self):
+        return self.mode == "EXTERNAL_GATE"
+
+
 class Acquisition(object):
     """Store information about a specific acquisition"""
 
     def __init__(self, lima, nb_points, nb_starts, expo_time, latency_time, trigger_mode):
         self.lima = lima
         self.nb_frames = nb_points * nb_starts
-        self.trigger_mode = trigger_mode.upper()
+        self.trigger = Trigger(trigger_mode)
         self.expo_time = expo_time
         self.latency_time = latency_time
+        self.nb_starts = nb_starts
+        self.nb_starts_called = 0
+        self.stopped = False
         self._acq_next_number = 0
         self._save_next_number = 0
         self._last_saved_number = -1
-        self.expected_nb_starts = nb_starts
-        self.nb_starts = 0
-        self.stopped = False
-        self.is_int_trig = trigger_mode.startswith("INTERNAL")
-        self.is_int_trig_start = trigger_mode == "INTERNAL_TRIGGER"
-        self.is_int_trig_multi = trigger_mode == "INTERNAL_TRIGGER_MULTI"
-        self.is_ext_trig = trigger_mode.startswith("EXTERNAL")
-        self.is_ext_trig_start = trigger_mode == "EXTERNAL_TRIGGER"
-        self.is_ext_trig_multi = trigger_mode == "EXTERNAL_TRIGGER_MULTI"
-        self.is_ext_gate = trigger_mode == "EXTERNAL_GATE"
-        self.is_hw_trig = self.is_ext_trig or self.is_ext_gate
 
     def __getitem__(self, name):
         return self.lima[name]
@@ -137,8 +170,7 @@ class Acquisition(object):
     def saving(self):
         return self.lima.saving
 
-    @property
-    def next_number(self):
+    def get_next_number(self):
         if self.saving.enabled:
             return self._save_next_number
         else:
@@ -154,7 +186,7 @@ class Acquisition(object):
 
     def prepare(self):
         names = "acq_nb_frames", "acq_expo_time", "latency_time", "acq_trigger_mode"
-        values = self.nb_frames, self.expo_time, self.latency_time, self.trigger_mode
+        values = self.nb_frames, self.expo_time, self.latency_time, self.trigger.mode
         self.lima[names] = values
         self.lima("prepareAcq")
         if self.saving.enabled:
@@ -162,27 +194,32 @@ class Acquisition(object):
                 time.sleep(0.01)
 
     def start(self):
-        self.lima("startAcq")
-        self.nb_starts += 1
-        if self.saving.enabled:
-            # buggy: for low exp_time the next number might be after
-            # a few frames already saved
-            self._save_next_number = self.lima["saving_next_number"]
+        if (not self.trigger.is_external) or self.nb_starts_called < 1:
+            # make sure start is only called once in hardware trigger mode
+            self.lima("startAcq")
+            if self.saving.enabled:
+                # buggy: for low exp_time the next number might be after
+                # a few frames already saved
+                self._save_next_number = self.lima["saving_next_number"]
+        self.nb_starts_called += 1
 
     def calc_status(self, acq_status, ready_for_next, idx_ready, idx_saved):
         if acq_status not in {"Ready", "Running"}:
             return acq_status
         if self.stopped:
             return "Ready"
-        done = idx_saved if self.saving.enabled else idx_ready
-        if done < self.nb_frames - 1:
+        idx_finished = idx_saved if self.saving.enabled else idx_ready
+        if idx_finished < self.nb_frames - 1:
             acq_status = "Running"
         if acq_status == "Running":
-            if self.is_int_trig_multi and ready_for_next:
-                if (idx_ready + 1) >= self.nb_starts:
+            if self.trigger.is_internal_multi and ready_for_next:
+                if (idx_finished + 1) >= self.nb_starts_called:
                     acq_status = "Ready"
-            elif self.is_ext_trig:
-                if idx_ready >= self.next_number:
+            elif self.trigger.is_external and self.nb_starts > 1:
+                # in hardware trigger, if there are multiple starts it means we
+                # are probably in a step scan so we need to report ready so
+                # that sardana calls ReadOne/RefOne to consume the point
+                if idx_finished >= self.get_next_number():
                     acq_status = "Ready"
         return acq_status
 

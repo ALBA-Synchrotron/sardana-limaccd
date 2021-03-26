@@ -245,7 +245,7 @@ class LimaCtrlMixin(object):
             repetitions, nb_starts, expo_time, latency_time, trigger_mode)
 
         lima.saving.prepare()
-        if not self._acquisition.is_int_trig_start:
+        if not self._acquisition.trigger.is_internal_start:
             self._acquisition.prepare()
 
     def LoadOne(self, axis, expo_time, repetitions, latency_time):
@@ -253,7 +253,7 @@ class LimaCtrlMixin(object):
             'LoadOne axis=%s exposure=%s rep=%s lat=%s sync=%s',
             axis, expo_time, repetitions, latency_time,
             self._synchronization)
-        if self._acquisition.is_int_trig_start:
+        if self._acquisition.trigger.is_internal_start:
             latency_time = self.calc_latency(latency_time)
             self._acquisition = self._lima.acquisition(
                 repetitions, 1, expo_time, latency_time, "INTERNAL_TRIGGER")
@@ -263,10 +263,7 @@ class LimaCtrlMixin(object):
         pass
 
     def StartAll(self):
-        acq = self._acquisition
-        self._log.info("StartAll trig=%s", acq["acq_trigger_mode"])
-        if acq.is_ext_trig and acq.nb_starts > 0:
-            return
+        self._log.info("StartAll trig=%s", self._acquisition.trigger.mode)
         self._acquisition.start()
 
     def ReadAll(self):
