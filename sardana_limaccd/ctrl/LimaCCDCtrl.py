@@ -264,8 +264,10 @@ class LimaCtrlMixin(object):
         pass
 
     def StartAll(self):
-        trigger_mode = self._acquisition["acq_trigger_mode"]
-        self._log.info("StartAll trig=%s", trigger_mode)
+        acq = self._acquisition
+        self._log.info("StartAll trig=%s", acq["acq_trigger_mode"])
+        if acq.is_ext_trig and acq.nb_starts > 0:
+            return
         self._acquisition.start()
 
     def ReadAll(self):
