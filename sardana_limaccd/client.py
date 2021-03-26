@@ -109,20 +109,18 @@ def saving_for_pattern(pattern):
 class Acquisition(object):
     """Store information about a specific acquisition"""
 
-    def __init__(self, lima, nb_frames, expo_time, latency_time, trigger_mode):
+    def __init__(self, lima, nb_points, nb_starts, expo_time, latency_time, trigger_mode):
         self.lima = lima
-        trigger_mode = trigger_mode.upper()
-        self.config = {
-            "acq_nb_frames": nb_frames,
-            "acq_expo_time": expo_time,
-            "latency_time": latency_time,
-            "acq_trigger_mode": trigger_mode
-        }
-        self.stopped = False
+        self.nb_frames = nb_points * nb_starts
+        self.trigger_mode = trigger_mode.upper()
+        self.expo_time = expo_time
+        self.latency_time = latency_time
         self._acq_next_number = 0
         self._save_next_number = 0
         self._last_saved_number = -1
+        self.expected_nb_starts = nb_starts
         self.nb_starts = 0
+        self.stopped = False
         self.is_int_trig = trigger_mode.startswith("INTERNAL")
         self.is_int_trig_start = trigger_mode == "INTERNAL_TRIGGER"
         self.is_int_trig_multi = trigger_mode == "INTERNAL_TRIGGER_MULTI"
@@ -138,11 +136,7 @@ class Acquisition(object):
     @property
     def saving(self):
         return self.lima.saving
-    def is_int_trig(self):
-        return self.config["acq_trigger_mode"] == "INTERNAL_TRIGGER"
 
-    def is_int_trig_multi(self):
-        return self.config["acq_trigger_mode"] == "INTERNAL_TRIGGER_MULTI"
 
     def stop(self):
         self.lima("stopAcq")
@@ -153,7 +147,8 @@ class Acquisition(object):
         self.stopped = True
 
     def prepare(self):
-        names, values = zip(*self.config.items())
+        names = "acq_nb_frames", "acq_expo_time", "latency_time", "acq_trigger_mode"
+        values = self.nb_frames, self.expo_time, self.latency_time, self.trigger_mode
         self.lima[names] = values
         self.lima("prepareAcq")
         if self.saving.enabled:
@@ -174,9 +169,8 @@ class Acquisition(object):
         if self.stopped:
             return "Ready"
         done = idx_saved if self.saving.enabled else idx_ready
-        if done < self.config["acq_nb_frames"] - 1:
+        if done < self.nb_frames - 1:
             acq_status = "Running"
-        trig_mode = self.config["acq_trigger_mode"]
         if ready_for_next and self.is_int_trig_multi() and acq_status == "Running":
             if (idx_ready + 1) >= self.nb_starts:
                 acq_status = "Ready"
@@ -316,9 +310,9 @@ class Lima(object):
             }
         return self._capabilities
 
-    def acquisition(self, nb_frames, expo_time, latency_time, trigger_mode):
+    def acquisition(self, nb_points, nb_starts, expo_time, latency_time, trigger_mode):
         return Acquisition(
-            self, nb_frames, expo_time, latency_time, trigger_mode,
+            self, nb_points, nb_starts, expo_time, latency_time, trigger_mode,
         )
 
     def read_frames(self, frame_start, frame_end):

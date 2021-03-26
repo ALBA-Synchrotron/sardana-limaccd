@@ -238,12 +238,11 @@ class LimaCtrlMixin(object):
         lima = self._lima
         if lima["acq_status"] != "Ready":
             lima("stopAcq")
-        nb_frames = repetitions * nb_starts
         latency_time = self.calc_latency(latency_time)
         trigger_mode = self.calc_trigger_mode()
 
         self._acquisition = lima.acquisition(
-            nb_frames, expo_time, latency_time, trigger_mode)
+            repetitions, nb_starts, expo_time, latency_time, trigger_mode)
 
         lima.saving.prepare()
         if not self._acquisition.is_int_trig_start:
@@ -257,7 +256,7 @@ class LimaCtrlMixin(object):
         if self._acquisition.is_int_trig_start:
             latency_time = self.calc_latency(latency_time)
             self._acquisition = self._lima.acquisition(
-                repetitions, expo_time, latency_time, "INTERNAL_TRIGGER")
+                repetitions, 1, expo_time, latency_time, "INTERNAL_TRIGGER")
             self._acquisition.prepare()
 
     def StartOne(self, axis, value):
