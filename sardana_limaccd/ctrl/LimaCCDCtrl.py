@@ -76,16 +76,6 @@ STATUS_MAP = {
 }
 
 
-def trigger_mode_from_synch(lima, acq_synch):
-    trigger_mode = TRIGGER_MAP[acq_synch]
-    if trigger_mode == "INTERNAL_TRIGGER_MULTI":
-        if trigger_mode not in lima.capabilities["acq_trigger_mode"]:
-            trigger_mode = "INTERNAL_TRIGGER"
-    elif trigger_mode not in lima.capabilities["acq_trigger_mode"]:
-        raise ValueError("trigger mode {0} not supported".format(trigger_mode))
-    return trigger_mode
-
-
 class LimaCtrlMixin(object):
     """
     Generic LimaCCD 2D Sardana Controller based on SEP2.
