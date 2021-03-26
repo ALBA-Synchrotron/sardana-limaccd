@@ -137,6 +137,12 @@ class Acquisition(object):
     def saving(self):
         return self.lima.saving
 
+    @property
+    def next_number(self):
+        if self.saving.enabled:
+            return self._save_next_number
+        else:
+            return self._acq_next_number
 
     def stop(self):
         self.lima("stopAcq")
@@ -171,9 +177,13 @@ class Acquisition(object):
         done = idx_saved if self.saving.enabled else idx_ready
         if done < self.nb_frames - 1:
             acq_status = "Running"
-        if ready_for_next and self.is_int_trig_multi() and acq_status == "Running":
-            if (idx_ready + 1) >= self.nb_starts:
-                acq_status = "Ready"
+        if acq_status == "Running":
+            if self.is_int_trig_multi and ready_for_next:
+                if (idx_ready + 1) >= self.nb_starts:
+                    acq_status = "Ready"
+            elif self.is_ext_trig:
+                if idx_ready >= self.next_number:
+                    acq_status = "Ready"
         return acq_status
 
     def next_frame(self):
