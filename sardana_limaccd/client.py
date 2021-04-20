@@ -268,6 +268,7 @@ class Saving(object):
     def __init__(self, lima):
         self.lima = lima
         self.first_image_nb = 0
+        self.delay_time = 0.05
         self.enabled = False
         self.pattern = ""
         self.config = {}
@@ -293,7 +294,7 @@ class Saving(object):
         self.lima[names] = values
         if self.first_image_nb != 0:
             self.lima["saving_next_number"] = -1
-            time.sleep(0.05) # empirical value?
+            time.sleep(self.delay_time)  # empirical value?
             self.lima["saving_prefix"] = config["saving_prefix"]
             monotonic = getattr(time, "monotonic", time.time)
             t0 = monotonic()

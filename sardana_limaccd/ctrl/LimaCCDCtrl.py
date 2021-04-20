@@ -99,6 +99,12 @@ class LimaCtrlMixin(object):
             DefaultValue: 0,
             Description: 'First value of the saving next number'
         },
+        'FirstImageNumberDelayTime': {
+            Type: float,
+            DefaultValue: 0.05,
+            Description: 'Sleep time required to let Lima set the first image '
+                         'number'
+        },
         'MasterTrigger': {
             Type: bool,
             DefaultValue: False,
@@ -181,6 +187,7 @@ class LimaCtrlMixin(object):
         self._ctrl_class = ctrl_class
         self._lima = Lima(self.LimaCCDDeviceName,  self._log)
         self._lima.saving.first_image_nb = self.FirstImageNumber
+        self._lima.saving.delay_time = self.FirstImageNumberDelayTime
         self._latency_time = self.LatencyTime
         self._acquisition = None
         try:
