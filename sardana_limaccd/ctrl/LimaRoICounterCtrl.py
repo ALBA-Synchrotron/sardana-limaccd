@@ -163,7 +163,7 @@ class LimaRoICounterCtrl(CounterTimerController):
         self._log.debug('StateOne: [%s] %s' % (self._state, self._status))
         return self._state, self._status
 
-    def LoadOne(self, axis, value, repetitions):
+    def LoadOne(self, axis, value, repetitions, latency):
         self._clean_acquisition()
         if self._synchronization == AcqSynch.SoftwareTrigger:
             self._repetitions = 1
