@@ -325,6 +325,7 @@ class Lima(object):
         self._device_name = device_name
         self._device = None
         self._capabilities = None
+        self._camera_type = None
         self.saving = Saving(self)
 
     def __call__(self, name, *args):
@@ -357,6 +358,12 @@ class Lima(object):
                 for cap in self.CAPABILITIES
             }
         return self._capabilities
+    
+    @property
+    def camera_type(self):
+        if self._camera_type is None:
+            self._camera_type = self["camera_type"]
+        return self._camera_type
 
     def acquisition(self, nb_points, nb_starts, expo_time, latency_time, trigger_mode):
         return Acquisition(

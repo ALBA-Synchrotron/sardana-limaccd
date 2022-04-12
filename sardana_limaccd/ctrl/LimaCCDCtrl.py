@@ -214,7 +214,8 @@ class LimaCtrlMixin(object):
     def calc_trigger_mode(self):
         trigger_mode = TRIGGER_MAP[self._synchronization]
         if trigger_mode == "INTERNAL_TRIGGER_MULTI":
-            if trigger_mode not in self._lima.capabilities["acq_trigger_mode"]:
+            if (trigger_mode not in self._lima.capabilities["acq_trigger_mode"]
+                    or self._lima.camera_type == "xspress3"):
                 trigger_mode = "INTERNAL_TRIGGER"
         elif trigger_mode not in self._lima.capabilities["acq_trigger_mode"]:
             raise ValueError("trigger mode {0} not supported".format(trigger_mode))
