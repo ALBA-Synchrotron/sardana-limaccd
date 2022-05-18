@@ -34,7 +34,7 @@ class LimaRoICounterCtrl(CounterTimerController):
                   Memorize: Memorized
                   },
         'RoIx2': {Type: int,
-                  Description: 'End pixel X',
+                  Description: 'RoI width in X dimension (in pixels)',
                   Access: DataAccess.ReadWrite,
                   Memorize: Memorized
                   },
@@ -44,7 +44,7 @@ class LimaRoICounterCtrl(CounterTimerController):
                   Memorize: Memorized
                   },
         'RoIy2': {Type: int,
-                  Description: 'End pixel Y',
+                  Description: 'RoI hight in Y dimension (in pixels)',
                   Access: DataAccess.ReadWrite,
                   Memorize: Memorized
                   },
