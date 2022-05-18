@@ -208,6 +208,8 @@ class Acquisition(object):
             return acq_status
         if self.stopped:
             return "Ready"
+        if self.nb_starts_called == 0:
+            return "Ready"
         idx_finished = idx_saved if self.saving.enabled else idx_ready
         if idx_finished < self.nb_frames - 1:
             acq_status = "Running"
