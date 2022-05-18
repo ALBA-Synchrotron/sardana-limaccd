@@ -217,7 +217,7 @@ class LimaRoICounterCtrl(CounterTimerController):
         except Exception as e:
             self._log.error("ReadOne %r" % e)
         self._log.debug("ReadOne return %r" % value)
-        return int(value)
+        return value
 
     def GetAxisExtraPar(self, axis, name):
         name = name.lower()
