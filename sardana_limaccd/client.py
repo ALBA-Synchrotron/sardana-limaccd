@@ -322,9 +322,10 @@ class Lima(object):
 
     CAPABILITIES = "saving_format", "acq_trigger_mode"
 
-    def __init__(self, device_name, log=None):
+    def __init__(self, device_name, log=None, tango_client_timeout=3000):
         self._log = log if log else logging.getLogger("Lima")
         self._device_name = device_name
+        self._tango_client_timeout = tango_client_timeout
         self._device = None
         self._capabilities = None
         self._camera_type = None
@@ -349,6 +350,7 @@ class Lima(object):
     def device(self):
         if self._device is None:
             device = tango.DeviceProxy(self._device_name)
+            device.set_timeout_millis(self._tango_client_timeout)
             self._device = device
         return self._device
 

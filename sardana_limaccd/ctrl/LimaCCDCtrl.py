@@ -110,6 +110,11 @@ class LimaCtrlMixin(object):
             DefaultValue: False,
             Description: 'True if detector is master trigger or'
                          'False otherwise'
+        },
+        'TangoClientTimeout': {
+            Type: int,
+            DefaultValue: 3000,
+            Description: 'Tango client timeout in milliseconds'
         }
     }
 
@@ -185,7 +190,11 @@ class LimaCtrlMixin(object):
 
     def __init__(self, ctrl_class):
         self._ctrl_class = ctrl_class
-        self._lima = Lima(self.LimaCCDDeviceName,  self._log)
+        self._lima = Lima(
+            self.LimaCCDDeviceName,
+            self._log,
+            self.TangoClientTimeout
+        )
         self._lima.saving.first_image_nb = self.FirstImageNumber
         self._lima.saving.delay_time = self.FirstImageNumberDelayTime
         self._latency_time = self.LatencyTime
