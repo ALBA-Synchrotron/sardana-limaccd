@@ -221,7 +221,7 @@ class Acquisition(object):
                 # in hardware trigger, if there are multiple starts it means we
                 # are probably in a step scan so we need to report ready so
                 # that sardana calls ReadOne/RefOne to consume the point
-                if idx_finished >= self.get_next_number():
+                if self.get_next_number() + idx_finished >= self.get_next_number():
                     acq_status = "Ready"
         return acq_status
 
