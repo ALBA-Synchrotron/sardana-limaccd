@@ -144,6 +144,7 @@ class LimaRoICounterCtrl(CounterTimerController):
         if self._abort_flg:
             self._state = State.On
             self._status = 'Aborted'
+            self._log.debug('StateAll: [%s] %s' % (self._state, self._status))
             return
 
         self._last_image_ready = self._limaroi.read_attribute(attr).value
@@ -158,9 +159,9 @@ class LimaRoICounterCtrl(CounterTimerController):
                 self._status = "Not images in buffer"
             else:
                 self._status = "RoI computed"
+        self._log.debug('StateAll: [%s] %s' % (self._state, self._status))
 
     def StateOne(self, axis):
-        self._log.debug('StateOne: [%s] %s' % (self._state, self._status))
         return self._state, self._status
 
     def LoadOne(self, axis, value, repetitions, latency):
@@ -181,7 +182,6 @@ class LimaRoICounterCtrl(CounterTimerController):
         self._abort_flg = True
 
     def ReadAll(self):
-        self._log.debug("ReadAll: Entering")
         for axis in list(self._data_buff.keys()):
             self._data_buff[axis] = []
         if self._last_image_ready != self._last_image_read:
@@ -200,10 +200,8 @@ class LimaRoICounterCtrl(CounterTimerController):
                                                       self._last_image_ready))
             if not self._synchronization == AcqSynch.SoftwareTrigger:
                 self._last_image_read = self._last_image_ready
-        self._log.debug("ReadAll: Leaving")
 
     def ReadOne(self, axis):
-        self._log.debug("ReadOne: Entering")
         try:
             if self._synchronization == AcqSynch.SoftwareTrigger:
                 # ReadOne is called even before the acquisition or the
