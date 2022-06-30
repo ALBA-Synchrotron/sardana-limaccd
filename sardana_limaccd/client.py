@@ -292,8 +292,13 @@ class Saving(object):
         self.config = config = saving_for_pattern(self.pattern)
         config["saving_mode"] = "AUTO_FRAME"
         config["saving_overwrite_policy"] = "ABORT"
-        names, values = zip(*config.items())
-        self.lima[names] = values
+        attr_ordered = ['saving_mode', 'saving_overwrite_policy',
+                        'saving_directory', 'saving_format',
+                        'saving_suffix', 'saving_index_format',
+                        'saving_prefix']
+        for name in attr_ordered:
+            self.lima[name] = self.config[name]
+
         if self.first_image_nb != 0:
             self.lima["saving_next_number"] = -1
             time.sleep(self.delay_time)  # empirical value?
