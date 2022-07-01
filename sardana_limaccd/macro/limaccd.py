@@ -158,9 +158,12 @@ class lima_hook(Macro):
     lima configuration environment:
     <ScanDir>/<directory>/<scan_sub_dir>/<prefix>{index:<index>}<suffix>
     """
+    param_def = [['scan_dir', Type.String, Optional, '']]
+        
     def run(self):
         conf = get_env(self)
-        scan_dir = self.getEnv('ScanDir')
+        if scan_dir is None:
+            scan_dir = self.getEnv('ScanDir')
         scan_id = self.getEnv('ScanID')
         mg_active = self.getEnv('ActiveMntGrp')
         mg = self.getMeasurementGroup(mg_active)
