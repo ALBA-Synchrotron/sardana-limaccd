@@ -198,7 +198,8 @@ class LimaRoICounterCtrl(CounterTimerController):
                     self._data_buff[axis] += [rois_data[sum_idx]]
             self._log.debug('Read images [%d, %d]' % (self._last_image_read,
                                                       self._last_image_ready))
-            if not self._synchronization == AcqSynch.SoftwareTrigger:
+            if self._synchronization in [AcqSynch.HardwareTrigger,
+                                         AcqSynch.HardwareGate]:
                 self._last_image_read = self._last_image_ready
 
     def ReadOne(self, axis):
