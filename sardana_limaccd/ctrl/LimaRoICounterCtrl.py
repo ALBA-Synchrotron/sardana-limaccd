@@ -209,7 +209,7 @@ class LimaRoICounterCtrl(CounterTimerController):
                 # readings of the counter evolution
                 if len(self._data_buff[axis]) == 0:
                     raise Exception('Acquisition did not finish correctly.')
-                value = self._data_buff[axis][0]
+                value = int(self._data_buff[axis][0])
             else:
                 value = self._data_buff[axis]
         except Exception as e:
