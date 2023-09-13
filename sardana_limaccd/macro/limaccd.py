@@ -16,7 +16,6 @@ def get_env(macro_obj):
     return conf
 
 
-
 # class reconfig_lima(Macro):
 #     """
 #     Macro to be sure that the configuration of the lima is correct
@@ -33,7 +32,7 @@ class set_lima_conf(Macro):
       "suffix": ".h5",
       "index": "05d",
       "scan_sub_dir": "scan_{ScanID:04d}",
-      "directory": "xp3"
+      "directory": "{ScanDir}/xp3"
 
     """
     param_def = [
@@ -62,7 +61,7 @@ class get_lima_conf(Macro):
       "suffix": ".h5",
       "index": "05d",
       "scan_sub_dir": "scan_{ScanID:04d}",
-      "directory": "xp3"
+      "directory": "{ScanDir}/xp3"
 
     """
     param_def = [
@@ -96,7 +95,7 @@ class def_lima_conf(Macro):
         suffix: ".edf",
         index: "04d",
         scan_sub_dir: "scan_{ScanID:04d}",
-        directory: <lima_channel>
+        directory: "{ScanDir}/<lima_channel>"
     """
     param_def = [['lima_channel', Type.TwoDExpChannel, None, ''],
                  ['parameters', [
@@ -118,7 +117,7 @@ class def_lima_conf(Macro):
                        "suffix": ".edf",
                        "index": "04d",
                        "scan_sub_dir": "scan_{ScanID:04d}",
-                       "directory": "{}".format(lima_channel)}
+                       "directory": "{{ScanDir}}/{}".format(lima_channel)}
 
         conf[alias].update(dict(parameters))
         self.setEnv(LIMA_ENV, conf)
@@ -132,7 +131,7 @@ class udef_lima_conf(Macro):
         suffix: ".edf",
         index: "04d",
         scan_sub_dir: "scan_{ScanID:04d}",
-        directory: <lima_channel>
+        directory: {ScanDir}/<lima_channel>
     """
     param_def = [['lima_channel', Type.TwoDExpChannel, None, '']]
 
@@ -156,8 +155,9 @@ class lima_hook(Macro):
     """
     Macro to configure ValueRefPattern of the Lima channel according to  the
     lima configuration environment:
-    <ScanDir>/<directory>/<scan_sub_dir>/<prefix>{index:<index>}<suffix>
+    <directory>/<scan_sub_dir>/<prefix>{index:<index>}<suffix>
     """
+
     def run(self):
         conf = get_env(self)
         scan_dir = self.getEnv('ScanDir')
@@ -169,9 +169,11 @@ class lima_hook(Macro):
             if element not in conf:
                 continue
             # Prepare the Value Reference Pattern for the element
-            lima_dir = conf[element]['directory']
+            # directory may contain <ScanDir>
+            lima_dir = conf[element]['directory'].format(ScanDir=scan_dir)
+            # scan_sub_dir may contain <ScanID>
             lima_sub_dir = conf[element]['scan_sub_dir'].format(ScanID=scan_id)
-            image_folder = os.path.join(scan_dir, lima_dir, lima_sub_dir)
+            image_folder = os.path.join(lima_dir, lima_sub_dir)
             if not os.path.exists(image_folder):
                 os.makedirs(image_folder)
             index = conf[element]['index']
