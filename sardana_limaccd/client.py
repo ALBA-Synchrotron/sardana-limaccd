@@ -23,14 +23,28 @@ class LimaImageFormat(struct.Struct):
     DTypes = ("u1", "u2", "u4", None, "i1", "i2", "i4")
     DTypeSize = (1, 2, 4, None, 1, 2, 4)
 
-    def __init__(self):
-        super(LimaImageFormat, self).__init__("<IHHIIHHHHHHHHIIIIIIII")
+    # Version: Format
+    DArrayPackStr = {2: "<IHHIIHHHHHHHHIIIIIIII",
+                     3: "<IHHIIHHHHHHHHIIIIIIQ"}
+
+    def __init__(self, dataArrayVersion=2):
+        self.dataArrayVersion = dataArrayVersion
+
+        try:
+            struct_format = self.DArrayPackStr[dataArrayVersion]
+        except KeyError:
+            raise ValueError(
+                'DataArrayVersion {} not supported'.format(dataArrayVersion))
+
+        super(LimaImageFormat, self).__init__(struct_format)
 
     def decode(self, buff, n=1):
         header = self.unpack_from(buff)
         magic, version, hsize, cat, typ, big_endian, ndim, d1, d2 = header[:9]
         assert magic == self.Magic
-        assert version == 2
+        assert version == self.dataArrayVersion, \
+            ("DataArrayVersion=%d must be specified in the controller "
+             "properties (currently v=%d)") % (version, self.dataArrayVersion)
         assert hsize == self.size
         dtype = self.DTypes[typ]
         pixel_size = self.DTypeSize[typ]
@@ -47,9 +61,6 @@ class LimaImageFormat(struct.Struct):
             frame.shape = d2, d1
             frames.append(frame)
         return frames
-
-
-LIMA_DECODER = LimaImageFormat()
 
 
 def saving_for_pattern(pattern):
@@ -327,7 +338,7 @@ class Lima(object):
 
     CAPABILITIES = "saving_format", "acq_trigger_mode"
 
-    def __init__(self, device_name, log=None, tango_client_timeout=3000):
+    def __init__(self, device_name, log=None, tango_client_timeout=3000, dataArrayVersion=2):
         self._log = log if log else logging.getLogger("Lima")
         self._device_name = device_name
         self._tango_client_timeout = tango_client_timeout
@@ -335,6 +346,7 @@ class Lima(object):
         self._capabilities = None
         self._camera_type = None
         self.saving = Saving(self)
+        self._lima_decoder = LimaImageFormat(dataArrayVersion)
 
     def __call__(self, name, *args):
         return self.device.command_inout(name, *args)
@@ -367,7 +379,7 @@ class Lima(object):
                 for cap in self.CAPABILITIES
             }
         return self._capabilities
-    
+
     @property
     def camera_type(self):
         if self._camera_type is None:
@@ -382,7 +394,7 @@ class Lima(object):
     def read_frames(self, frame_start, frame_end):
         fmt, buff = self("readImageSeq", (frame_start, frame_end))
         assert fmt == "DATA_ARRAY"
-        return LIMA_DECODER.decode(buff, n=frame_end - frame_start)
+        return self._lima_decoder.decode(buff, n=frame_end - frame_start)
 
     def get_status(self):
         return self[
