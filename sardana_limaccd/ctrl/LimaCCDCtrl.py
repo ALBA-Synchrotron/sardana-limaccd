@@ -115,6 +115,13 @@ class LimaCtrlMixin(object):
             Type: int,
             DefaultValue: 3000,
             Description: 'Tango client timeout in milliseconds'
+        },
+        'DataArrayVersion': {
+            Type: int,
+            DefaultValue: 2,
+            Description: 'LimaCCDs DataArrayVersion.'
+                         'Supported versions are 2 (LimaCCDs <1.9.17)'
+                         'and 3 (>1.9.17)'
         }
     }
 
@@ -193,7 +200,8 @@ class LimaCtrlMixin(object):
         self._lima = Lima(
             self.LimaCCDDeviceName,
             self._log,
-            self.TangoClientTimeout
+            self.TangoClientTimeout,
+            self.DataArrayVersion
         )
         self._lima.saving.first_image_nb = self.FirstImageNumber
         self._lima.saving.delay_time = self.FirstImageNumberDelayTime
