@@ -42,7 +42,7 @@ LIMA_ATTRS = {
     'savingcommonheader': 'saving_common_header',
     'savingframeperfile': 'saving_frame_per_file',
     'savingheaderdelimiter': 'saving_header_delimiter',
-    'savingmanagemode': 'saving_manage_mode',
+    'savingmanagedmode': 'saving_managed_mode',
     'savingmaxwritingtask': 'saving_max_writing_task',
     'savingmode': 'saving_mode',
     'savingnextnumber': 'saving_next_number',
