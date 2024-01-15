@@ -1,15 +1,16 @@
 import copy
 import pprint
 import os
+import re
 
 from sardana.macroserver.macro import Macro, Type, Optional
 
 LIMA_ENV = '_LimaConfiguration'
 
 
-def get_env(macro_obj):
+def get_env(macro_obj, var=LIMA_ENV):
     try:
-        conf = copy.deepcopy(macro_obj.getEnv(LIMA_ENV))
+        conf = copy.deepcopy(macro_obj.getEnv(var))
     except Exception:
         raise ValueError('There is not lima detector defined. '
                          'See def_lima_conf')
@@ -151,6 +152,48 @@ class udef_lima_conf(Macro):
         self.output('Removed %s lima configuration', alias)
 
 
+def find_dynamic_variables(string):
+    variables_brackets = re.findall(r'\{.*?\}', string)
+    variables = [var[1:-1] for var in variables_brackets]
+    return variables
+
+
+def str_formatting_env_variables(macro_obj, string):
+    """
+    Function to translate from environment variables to string recursively.
+    It takes an string with keywords that are going to be replaced by their
+    corresponding environment variable value. Hence, the keywords must be
+    environment variables with value strings or numbers.
+    Everything between curly brackets '{}' will be considered a keyword.
+    eg:
+    string: '{env1}/test/01'
+    env1: '/data'
+    result: '/data/test/01'
+    """
+    if string == '""' or string == "''":
+        return ""
+    dynamic_variables = find_dynamic_variables(string)
+    # Get only the name in case it also specifies number formatting
+    dynamic_variables = [var.split(":")[0] for var in dynamic_variables]
+    # Validate that all variables exist as environment variables
+    current_env = get_env(macro_obj, var=None)
+    invalid_variables = []
+    for var in dynamic_variables:
+        if var not in current_env:
+            invalid_variables.append(var)
+    if invalid_variables:
+        raise ValueError("Dynamic variables '{}' do not exist in environment".format(invalid_variables))
+
+    environment_variables = {var : current_env[var] for var in dynamic_variables}
+    formatted_str = string.format(**environment_variables)
+
+    if find_dynamic_variables(formatted_str):
+        # Recursive step
+        return str_formatting_env_variables(macro_obj, formatted_str)
+
+    return formatted_str
+
+
 class lima_hook(Macro):
     """
     Macro to configure ValueRefPattern of the Lima channel according to  the
@@ -160,8 +203,6 @@ class lima_hook(Macro):
 
     def run(self):
         conf = get_env(self)
-        scan_dir = self.getEnv('ScanDir')
-        scan_id = self.getEnv('ScanID')
         mg_active = self.getEnv('ActiveMntGrp')
         mg = self.getMeasurementGroup(mg_active)
 
@@ -169,24 +210,27 @@ class lima_hook(Macro):
             if element not in conf:
                 continue
             # Prepare the Value Reference Pattern for the element
-            # directory may contain <ScanDir>
-            lima_dir = conf[element]['directory'].format(ScanDir=scan_dir)
-            # scan_sub_dir may contain <ScanID>
-            lima_sub_dir = conf[element]['scan_sub_dir'].format(ScanID=scan_id)
+            # directory may contain any environment variable
+            lima_dir = str_formatting_env_variables(self, conf[element]['directory'])
+            # scan_sub_dir may contain any environment variable
+            lima_sub_dir = str_formatting_env_variables(self, conf[element]['scan_sub_dir'])
             image_folder = os.path.join(lima_dir, lima_sub_dir)
             if not os.path.exists(image_folder):
                 os.makedirs(image_folder)
             index = conf[element]['index']
-            prefix = conf[element]['prefix']
+            # scan_sub_dir may contain any environment variable
+            prefix = str_formatting_env_variables(self, conf[element]['prefix'])
             suffix = conf[element]['suffix'].split('.')[1]
             # TODO Find a nice way
-            image_patter = "file://{}/{}".format(image_folder, prefix)
-            image_patter += "{"
-            image_patter += "index:{}".format(index)
-            image_patter += "}"
-            image_patter += ".{}".format(suffix)
+            image_path = "file://"+image_folder
+            image_name = "{}".format(prefix)
+            image_name += "{"
+            image_name += "index:{}".format(index)
+            image_name += "}"
+            image_name += ".{}".format(suffix)
+            image_pattern = os.path.join(image_path, image_name)
             self.info('Configured %s channel according to the lima '
-                      'configuration: %s', element, image_patter)
+                      'configuration: %s', element, image_pattern)
             # TODO Use the MntGrp API
-            self.set_meas_conf('ValueRefPattern', image_patter, element, mg)
+            self.set_meas_conf('ValueRefPattern', image_pattern, element, mg)
             self.set_meas_conf('ValueRefEnabled', True, element, mg)
