@@ -161,7 +161,7 @@ def find_dynamic_variables(string):
 def str_formatting_env_variables(macro_obj, string):
     """
     Function to translate from environment variables to string recursively.
-    It takes an string with keywords that are going to be replaced by their
+    It takes a string with keywords that are going to be replaced by their
     corresponding environment variable value. Hence, the keywords must be
     environment variables with value strings or numbers.
     Everything between curly brackets '{}' will be considered a keyword.
@@ -182,9 +182,11 @@ def str_formatting_env_variables(macro_obj, string):
         if var not in current_env:
             invalid_variables.append(var)
     if invalid_variables:
-        raise ValueError("Dynamic variables '{}' do not exist in environment".format(invalid_variables))
+        raise ValueError("Dynamic variables '{}' do not exist in environment"
+                         "".format(invalid_variables))
 
-    environment_variables = {var : current_env[var] for var in dynamic_variables}
+    environment_variables = {var : current_env[var] for var in
+                             dynamic_variables}
     formatted_str = string.format(**environment_variables)
 
     if find_dynamic_variables(formatted_str):
@@ -211,15 +213,18 @@ class lima_hook(Macro):
                 continue
             # Prepare the Value Reference Pattern for the element
             # directory may contain any environment variable
-            lima_dir = str_formatting_env_variables(self, conf[element]['directory'])
+            lima_dir = str_formatting_env_variables(
+                self, conf[element]['directory'])
             # scan_sub_dir may contain any environment variable
-            lima_sub_dir = str_formatting_env_variables(self, conf[element]['scan_sub_dir'])
+            lima_sub_dir = str_formatting_env_variables(
+                self, conf[element]['scan_sub_dir'])
             image_folder = os.path.join(lima_dir, lima_sub_dir)
             if not os.path.exists(image_folder):
                 os.makedirs(image_folder)
             index = conf[element]['index']
             # scan_sub_dir may contain any environment variable
-            prefix = str_formatting_env_variables(self, conf[element]['prefix'])
+            prefix = str_formatting_env_variables(
+                self, conf[element]['prefix'])
             suffix = conf[element]['suffix'].split('.')[1]
             # TODO Find a nice way
             image_path = "file://"+image_folder
