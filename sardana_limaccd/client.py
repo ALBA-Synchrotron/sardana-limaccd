@@ -285,6 +285,9 @@ class Saving(object):
         self.enabled = False
         self.pattern = ""
         self.config = {}
+        self.windows_saving = False
+        self.windows_drive = ''
+        self.windows_remove_base_path = ''
 
     def filename(self, index):
         scheme = "file"
@@ -308,7 +311,19 @@ class Saving(object):
                         'saving_suffix', 'saving_index_format',
                         'saving_prefix']
         for name in attr_ordered:
-            self.lima[name] = self.config[name]
+            if name == 'saving_directory' and self.windows_saving:
+                saving_directory = self.config["saving_directory"]
+                saving_directory = saving_directory.split(
+                    self.windows_remove_base_path)[-1]
+                if ':' not in self.windows_drive:
+                    self.windows_drive += ':/'
+                elif '/' not in self.windows_drive:
+                    self.windows_drive += '/'
+
+                saving_directory = self.windows_drive + saving_directory
+                self.lima["saving_directory"] = saving_directory
+            else:
+                self.lima[name] = self.config[name]
 
         if self.first_image_nb != 0:
             self.lima["saving_next_number"] = -1
