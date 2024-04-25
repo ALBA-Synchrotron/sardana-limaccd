@@ -122,7 +122,24 @@ class LimaCtrlMixin(object):
             Description: 'LimaCCDs DataArrayVersion.'
                          'Supported versions are 2 (LimaCCDs <1.9.17)'
                          'and 3 (>1.9.17)'
-        }
+        },
+        'WindowsSaving': {
+            Type: bool,
+            Description: 'LimaCCD server is running on Windows OS '
+                         'Machine',
+            DefaultValue: False},
+        'WindowsDrive': {
+            Type: str,
+            Description: 'Drive letter for the storage mounting eg: "L"',
+            DefaultValue: ''},
+        'WindowsRemoveBasePath': {
+            Type: str,
+            Description: 'Linux and Windows mounting different point for the '
+                         'storage, eg: Linux /beamlines/bl31/projects/xxx '
+                         'and Windows L:/projects/xxx. Set /beamlines/bl31/ '
+                         'to remove from the value_ref_pattern to '
+                         'save in windows',
+            DefaultValue: ''}
     }
 
     ctrl_attributes = {
@@ -191,7 +208,9 @@ class LimaCtrlMixin(object):
             Access: DataAccess.ReadWrite,
             Memorize: NotMemorized,
             MaxDimSize: (1000000,)},
-        }
+
+
+    }
 
     axis_attributes = {}
 
@@ -205,6 +224,12 @@ class LimaCtrlMixin(object):
         )
         self._lima.saving.first_image_nb = self.FirstImageNumber
         self._lima.saving.delay_time = self.FirstImageNumberDelayTime
+        if self.WindowsSaving and not self.WindowsDrive:
+            self._log.exception('WindowsDrive must have a value '
+                                'if WindowsSaving is enabled')
+        self._lima.saving.windows_saving = self.WindowsSaving
+        self._lima.saving.windows_drive = self.WindowsDrive
+        self._lima.saving.windows_remove_base_path = self.WindowsRemoveBasePath
         self._latency_time = self.LatencyTime
         self._acquisition = None
         try:

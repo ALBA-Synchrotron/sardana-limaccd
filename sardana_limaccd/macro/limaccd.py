@@ -33,7 +33,8 @@ class set_lima_conf(Macro):
       "suffix": ".h5",
       "index": "05d",
       "scan_sub_dir": "scan_{ScanID:04d}",
-      "directory": "{ScanDir}/xp3"
+      "directory": "{ScanDir}/xp3",
+      "create_folders": True
 
     """
     param_def = [
@@ -49,7 +50,8 @@ class set_lima_conf(Macro):
         if alias not in conf:
             raise ValueError('The detector is not on the configuration. '
                              'Use def_lima_conf macro to include it.')
-
+        if parameter == 'create_folders':
+            value = eval(value)
         conf[alias][parameter] = value
         self.setEnv(LIMA_ENV, conf)
 
@@ -62,7 +64,8 @@ class get_lima_conf(Macro):
       "suffix": ".h5",
       "index": "05d",
       "scan_sub_dir": "scan_{ScanID:04d}",
-      "directory": "{ScanDir}/xp3"
+      "directory": "{ScanDir}/xp3",
+      "create_folders": True
 
     """
     param_def = [
@@ -96,7 +99,8 @@ class def_lima_conf(Macro):
         suffix: ".edf",
         index: "04d",
         scan_sub_dir: "scan_{ScanID:04d}",
-        directory: "{ScanDir}/<lima_channel>"
+        directory: "{ScanDir}/<lima_channel>",
+        create_folders: True
     """
     param_def = [['lima_channel', Type.TwoDExpChannel, None, ''],
                  ['parameters', [
@@ -118,7 +122,8 @@ class def_lima_conf(Macro):
                        "suffix": ".edf",
                        "index": "04d",
                        "scan_sub_dir": "scan_{ScanID:04d}",
-                       "directory": "{{ScanDir}}/{}".format(lima_channel)}
+                       "directory": "{{ScanDir}}/{}".format(lima_channel),
+                       "create_folders": True}
 
         conf[alias].update(dict(parameters))
         self.setEnv(LIMA_ENV, conf)
@@ -133,6 +138,7 @@ class udef_lima_conf(Macro):
         index: "04d",
         scan_sub_dir: "scan_{ScanID:04d}",
         directory: {ScanDir}/<lima_channel>
+        create_folders: True
     """
     param_def = [['lima_channel', Type.TwoDExpChannel, None, '']]
 
@@ -161,7 +167,7 @@ def find_dynamic_variables(string):
 def str_formatting_env_variables(macro_obj, string):
     """
     Function to translate from environment variables to string recursively.
-    It takes an string with keywords that are going to be replaced by their
+    It takes a string with keywords that are going to be replaced by their
     corresponding environment variable value. Hence, the keywords must be
     environment variables with value strings or numbers.
     Everything between curly brackets '{}' will be considered a keyword.
@@ -182,9 +188,11 @@ def str_formatting_env_variables(macro_obj, string):
         if var not in current_env:
             invalid_variables.append(var)
     if invalid_variables:
-        raise ValueError("Dynamic variables '{}' do not exist in environment".format(invalid_variables))
+        raise ValueError("Dynamic variables '{}' do not exist in environment"
+                         "".format(invalid_variables))
 
-    environment_variables = {var : current_env[var] for var in dynamic_variables}
+    environment_variables = {var : current_env[var] for var in
+                             dynamic_variables}
     formatted_str = string.format(**environment_variables)
 
     if find_dynamic_variables(formatted_str):
@@ -192,6 +200,22 @@ def str_formatting_env_variables(macro_obj, string):
         return str_formatting_env_variables(macro_obj, formatted_str)
 
     return formatted_str
+
+def create_image_folder(macro_obj, channel_conf):
+    # Prepare the Value Reference Pattern for the element
+    # directory may contain any environment variable
+    lima_dir = str_formatting_env_variables(
+        macro_obj, channel_conf['directory'])
+    # scan_sub_dir may contain any environment variable
+    lima_sub_dir = str_formatting_env_variables(
+        macro_obj, channel_conf['scan_sub_dir'])
+    image_folder = os.path.join(lima_dir, lima_sub_dir)
+    # Check if the creation of the folders is needed, if the key
+    # does not exist the hook will create the folder by default.
+    create_folders = channel_conf.get('create_folders', True)
+    if create_folders and not os.path.exists(image_folder):
+        os.makedirs(image_folder)
+    return image_folder
 
 
 class lima_hook(Macro):
@@ -206,21 +230,16 @@ class lima_hook(Macro):
         mg_active = self.getEnv('ActiveMntGrp')
         mg = self.getMeasurementGroup(mg_active)
 
-        for element in mg.getChannelLabels():
-            if element not in conf:
+        for channel in mg.getChannelLabels():
+            if channel not in conf:
                 continue
-            # Prepare the Value Reference Pattern for the element
-            # directory may contain any environment variable
-            lima_dir = str_formatting_env_variables(self, conf[element]['directory'])
-            # scan_sub_dir may contain any environment variable
-            lima_sub_dir = str_formatting_env_variables(self, conf[element]['scan_sub_dir'])
-            image_folder = os.path.join(lima_dir, lima_sub_dir)
-            if not os.path.exists(image_folder):
-                os.makedirs(image_folder)
-            index = conf[element]['index']
-            # scan_sub_dir may contain any environment variable
-            prefix = str_formatting_env_variables(self, conf[element]['prefix'])
-            suffix = conf[element]['suffix'].split('.')[1]
+
+            channel_conf = conf[channel]
+            image_folder = create_image_folder(self, channel_conf)
+            index = channel_conf['index']
+            prefix = str_formatting_env_variables(
+                self, channel_conf['prefix'])
+            suffix = channel_conf['suffix'].split('.')[1]
             # TODO Find a nice way
             image_path = "file://"+image_folder
             image_name = "{}".format(prefix)
@@ -230,7 +249,7 @@ class lima_hook(Macro):
             image_name += ".{}".format(suffix)
             image_pattern = os.path.join(image_path, image_name)
             self.info('Configured %s channel according to the lima '
-                      'configuration: %s', element, image_pattern)
+                      'configuration: %s', channel, image_pattern)
             # TODO Use the MntGrp API
-            self.set_meas_conf('ValueRefPattern', image_pattern, element, mg)
-            self.set_meas_conf('ValueRefEnabled', True, element, mg)
+            self.set_meas_conf('ValueRefPattern', image_pattern, channel, mg)
+            self.set_meas_conf('ValueRefEnabled', True, channel, mg)
