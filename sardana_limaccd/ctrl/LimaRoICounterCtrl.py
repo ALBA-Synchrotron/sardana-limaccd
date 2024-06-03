@@ -6,6 +6,9 @@ from sardana.pool.controller import Type, Access, Description, Memorize, \
 from sardana.pool import AcqSynch
 
 
+SOFTWARE_SYNCHRONIZATIONS = [AcqSynch.SoftwareGate, AcqSynch.SoftwareTrigger,
+                             AcqSynch.SoftwareTrigger]
+
 class LimaRoICounterCtrl(CounterTimerController):
     """
     This class is the Tango Sardana CounterTimer controller for getting the
@@ -185,10 +188,17 @@ class LimaRoICounterCtrl(CounterTimerController):
         for axis in list(self._data_buff.keys()):
             self._data_buff[axis] = []
         if self._last_image_ready != self._last_image_read:
-            if not self._synchronization == AcqSynch.SoftwareTrigger:
+            if self._synchronization not in SOFTWARE_SYNCHRONIZATIONS:
                 self._last_image_read += 1
             rois_data = self._limaroi.readCounters(self._last_image_read)
-            self._last_image_ready = rois_data[-6]
+            try:
+                self._last_image_ready = rois_data[-6]
+            except IndexError:
+                self._log.error('No ROIs calculated for the image {} yet'
+                                ''.format(self._last_image_read))
+                if self._synchronization not in SOFTWARE_SYNCHRONIZATIONS:
+                    self._last_image_read -= 1
+                return
             for base_idx in range(0, len(rois_data), 7):
                 roi_id_idx = base_idx + self.IDX_ROI_ID
                 roi_id = rois_data[roi_id_idx]
