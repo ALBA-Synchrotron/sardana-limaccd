@@ -261,14 +261,17 @@ class Acquisition(object):
         return self.saving.filename(n)
 
     def next_ref_frames(self):
-        last = self["last_image_saved"]
-        n = last - self._last_saved_number
-        refs = [
-            self.saving.filename(self._save_next_number + i)
-            for i in range(n)
-        ]
-        self._save_next_number += n
-        self._last_saved_number += n
+        lima_last_image_saved = self["last_image_saved"]
+        frames_per_file = self.saving.frames_per_file
+
+        n = lima_last_image_saved - self._last_saved_number
+        refs = []
+        for i in range(n):
+            file_nr = int((self._last_saved_number+1) /
+                          frames_per_file) + self._save_next_number
+            refs.append(self.saving.filename(file_nr))
+            self._last_saved_number += 1
+
         return refs
 
 
@@ -280,6 +283,7 @@ class Saving(object):
     def __init__(self, lima):
         self.lima = lima
         self.first_image_nb = 0
+        self.frames_per_file = 1
         self.delay_time = 0.05
         self.enabled = False
         self.pattern = ""
@@ -303,6 +307,7 @@ class Saving(object):
             self.lima["saving_mode"] = "MANUAL"
             return
         self.config = config = saving_for_pattern(self.pattern)
+        self.frames_per_file = self.lima["saving_frame_per_file"]
         config["saving_mode"] = "AUTO_FRAME"
         config["saving_overwrite_policy"] = "ABORT"
         attr_ordered = ['saving_mode', 'saving_overwrite_policy',
@@ -345,7 +350,6 @@ class Saving(object):
                 if saving_next_number == 0:
                     self.lima["saving_next_number"] = self.first_image_nb
                 time.sleep(0.03)
-
 
 class Lima(object):
     """LimaCCD Controller helper class"""
