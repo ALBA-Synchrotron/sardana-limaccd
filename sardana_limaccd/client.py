@@ -257,8 +257,7 @@ class Acquisition(object):
         return frames
 
     def next_ref_frame(self):
-        last = self["last_image_saved"]
-        n = self._save_next_number + last
+        n = self._save_next_number
         return self.saving.filename(n)
 
     def next_ref_frames(self):
