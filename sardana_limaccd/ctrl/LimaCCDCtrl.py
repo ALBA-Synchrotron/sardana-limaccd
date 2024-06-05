@@ -139,7 +139,13 @@ class LimaCtrlMixin(object):
                          'and Windows L:/projects/xxx. Set /beamlines/bl31/ '
                          'to remove from the value_ref_pattern to '
                          'save in windows',
-            DefaultValue: ''}
+            DefaultValue: ''},
+        'H5DatasetPath': {
+            Type: str,
+            Description: 'Path inside the h5 files where the data is stored, '
+                         'to assing properly as VDS when creating the h5 file'
+                         '[default= "entry_0000/measurement/data"]',
+            DefaultValue: 'entry_0000/measurement/data'}
     }
 
     ctrl_attributes = {
@@ -208,8 +214,6 @@ class LimaCtrlMixin(object):
             Access: DataAccess.ReadWrite,
             Memorize: NotMemorized,
             MaxDimSize: (1000000,)},
-
-
     }
 
     axis_attributes = {}
@@ -332,8 +336,10 @@ class LimaCtrlMixin(object):
     def RefOne(self, axis):
         if self.is_soft_gate_or_trigger:
             res = self._acquisition.next_ref_frame()
+            res = res + "::" + self.H5DatasetPath
         else:
             res = self._acquisition.next_ref_frames()
+            res = [ref + "::" + self.H5DatasetPath for ref in res]
         return res
 
     def StopOne(self, axis):
