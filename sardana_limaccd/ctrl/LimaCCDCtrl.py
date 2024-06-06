@@ -139,7 +139,14 @@ class LimaCtrlMixin(object):
                          'and Windows L:/projects/xxx. Set /beamlines/bl31/ '
                          'to remove from the value_ref_pattern to '
                          'save in windows',
-            DefaultValue: ''}
+            DefaultValue: ''},
+        'HardwareStartConvert': {
+            Type: str,
+            Description: 'HW/SW Start synchronization will be converted to '
+                         'HW/SW Trigger or Gate according to this property '
+                         'when launching a step scan'
+                         'Allowed values = Trigger, Gate [default= Trigger]',
+            DefaultValue: 'Trigger'},
     }
 
     ctrl_attributes = {
@@ -237,6 +244,15 @@ class LimaCtrlMixin(object):
         except Exception:
             self._log.exception("Failed to initialize")
 
+        self._start_trigger_map = {
+            AcqSynch.HardwareStart: AcqSynch.HardwareTrigger,
+            AcqSynch.SoftwareStart: AcqSynch.SoftwareTrigger,
+        }
+        if 'gate' in self.HardwareStartConvert.lower():
+            self._start_trigger_map.update({
+                AcqSynch.HardwareStart: AcqSynch.HardwareGate
+            })
+
     @property
     def is_soft_gate_or_trigger(self):
         return self._synchronization in \
@@ -285,6 +301,9 @@ class LimaCtrlMixin(object):
             'PrepareOne axis=%s exposure=%s rep=%s lat=%s nb_starts=%s sync=%s',
             axis, expo_time, repetitions, latency_time, nb_starts,
             self._synchronization)
+        if self._synchronization in {AcqSynch.SoftwareStart, AcqSynch.HardwareStart} \
+                and nb_starts > 1:
+            self._synchronization = self._start_trigger_map[self._synchronization]
         lima = self._lima
         if lima["acq_status"] != "Ready":
             lima("stopAcq")
