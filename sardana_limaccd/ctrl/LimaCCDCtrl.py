@@ -258,6 +258,9 @@ class LimaCtrlMixin(object):
                 AcqSynch.HardwareStart: AcqSynch.HardwareGate
             })
 
+        if self.H5DatasetPath:
+            self._lima.saving.dataset_path = "::" + self.H5DatasetPath
+
     @property
     def is_soft_gate_or_trigger(self):
         return self._synchronization in \
@@ -356,10 +359,8 @@ class LimaCtrlMixin(object):
     def RefOne(self, axis):
         if self.is_soft_gate_or_trigger:
             res = self._acquisition.next_ref_frame()
-            res = res + "::" + self.H5DatasetPath
         else:
             res = self._acquisition.next_ref_frames()
-            res = [ref + "::" + self.H5DatasetPath for ref in res]
         return res
 
     def StopOne(self, axis):
