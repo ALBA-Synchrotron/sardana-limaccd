@@ -145,7 +145,7 @@ class LimaCtrlMixin(object):
             Description: 'Path inside the h5 files where the data is stored, '
                          'to assing properly as VDS when creating the h5 file'
                          '[default= "entry_0000/measurement/data"]',
-            DefaultValue: 'entry_0000/measurement/data'}
+            DefaultValue: 'entry_0000/measurement/data'},
         'HardwareStartConvert': {
             Type: str,
             Description: 'HW/SW Start synchronization will be converted to '
