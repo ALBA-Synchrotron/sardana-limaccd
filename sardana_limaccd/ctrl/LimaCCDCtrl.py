@@ -153,7 +153,14 @@ class LimaCtrlMixin(object):
                          'when launching a step scan'
                          'Allowed values = Trigger, Gate [default= Trigger]',
             DefaultValue: 'Trigger'},
-
+        'HardwareSavingExtraPrefix': {
+            Type: str,
+            Description: 'In HW saving_managed_mode, detectors can add'
+                         'a specific string in the file saved name between the'
+                         'prefix and the index (e.g. for Eiger the Extra prefix '
+                         'is "_data_" so filenames are <prefix>_data_<index>.h5).'
+                         'Add it here so references will take it into account.',
+        }
     }
 
     ctrl_attributes = {
@@ -260,6 +267,9 @@ class LimaCtrlMixin(object):
 
         if self.H5DatasetPath:
             self._lima.saving.dataset_path = "::" + self.H5DatasetPath
+
+        if self.HardwareSavingExtraPrefix:
+            self._lima.saving.extra_hw_prefix = self.HardwareSavingExtraPrefix
 
     @property
     def is_soft_gate_or_trigger(self):

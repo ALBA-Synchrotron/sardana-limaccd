@@ -284,7 +284,7 @@ class Acquisition(object):
 class Saving(object):
 
     FILE_PATTERN = \
-        "{scheme}://{saving_directory}/{saving_prefix}{index}{saving_suffix}{dataset}"
+        "{scheme}://{saving_directory}/{saving_prefix}{hw_prefix}{index}{saving_suffix}{dataset}"
 
     def __init__(self, lima):
         self.lima = lima
@@ -299,16 +299,21 @@ class Saving(object):
         self.windows_remove_base_path = ''
         self.dataset_path = ''
         self.saving_managed_mode = "SOFTWARE"
+        self.extra_hw_prefix = ''
 
     def filename(self, index):
         scheme = "file"
         dataset_path = ""
+        hw_prefix = ""
         if self.config["saving_format"] == "HDF5":
             scheme = "h5file"
             dataset_path = self.dataset_path
+        if self.saving_managed_mode == "HARDWARE":
+            hw_prefix = self.extra_hw_prefix
         index = self.config["saving_index_format"] % index
         return self.FILE_PATTERN.format(
-            scheme=scheme, index=index, **self.config, dataset=dataset_path
+            scheme=scheme, index=index, **self.config,
+            hw_prefix=hw_prefix, dataset=dataset_path
         )
 
     def prepare(self):
