@@ -226,7 +226,8 @@ class Acquisition(object):
             acq_status = "Running"
         if acq_status == "Running":
             if self.trigger.is_internal_multi and ready_for_next:
-                if (idx_finished + 1) >= self.nb_starts_called:
+                if (idx_finished + 1) >= self.nb_starts_called or \
+                        self.saving.saving_managed_mode == "HARDWARE":
                     acq_status = "Ready"
             elif self.trigger.is_external and self.nb_starts > 1:
                 # in hardware trigger, if there are multiple starts it means we
@@ -258,6 +259,11 @@ class Acquisition(object):
 
     def next_ref_frame(self):
         n = self._save_next_number
+        if self.saving.saving_managed_mode == "HARDWARE":
+            frames_per_file = self.saving.frames_per_file
+            n = int((self._last_saved_number+1) /
+                          frames_per_file) + self._save_next_number
+            self._last_saved_number += 1
         return self.saving.filename(n)
 
     def next_ref_frames(self):
@@ -292,6 +298,7 @@ class Saving(object):
         self.windows_drive = ''
         self.windows_remove_base_path = ''
         self.dataset_path = ''
+        self.saving_managed_mode = "SOFTWARE"
 
     def filename(self, index):
         scheme = "file"
@@ -311,6 +318,7 @@ class Saving(object):
             return
         self.config = config = saving_for_pattern(self.pattern)
         self.frames_per_file = self.lima["saving_frame_per_file"]
+        self.saving_managed_mode = self.lima["saving_managed_mode"]
         config["saving_mode"] = "AUTO_FRAME"
         config["saving_overwrite_policy"] = "ABORT"
         attr_ordered = ['saving_mode', 'saving_overwrite_policy',
