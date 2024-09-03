@@ -25,7 +25,8 @@ class LimaImageFormat(struct.Struct):
 
     # Version: Format
     DArrayPackStr = {2: "<IHHIIHHHHHHHHIIIIIIII",
-                     3: "<IHHIIHHHHHHHHIIIIIIQ"}
+                     3: "<IHHIIHHHHHHHHIIIIIIQ",
+                     4: "<IHHIIHHHHHHHHIIIIIIQQII"}
 
     def __init__(self, dataArrayVersion=2):
         self.dataArrayVersion = dataArrayVersion
