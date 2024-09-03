@@ -118,10 +118,10 @@ class LimaCtrlMixin(object):
         },
         'DataArrayVersion': {
             Type: int,
-            DefaultValue: 2,
+            DefaultValue: 4,
             Description: 'LimaCCDs DataArrayVersion.'
                          'Supported versions are 2 (LimaCCDs <1.9.17)'
-                         'and 3 (>1.9.17)'
+                         '3 (>=1.9.17) and 4 (>=1.10)'
         },
         'WindowsSaving': {
             Type: bool,
