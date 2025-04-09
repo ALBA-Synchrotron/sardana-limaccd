@@ -160,6 +160,13 @@ class LimaCtrlMixin(object):
                          'prefix and the index (e.g. for Eiger the Extra prefix '
                          'is "_data_" so filenames are <prefix>_data_<index>.h5).'
                          'Add it here so references will take it into account.',
+        },
+        'ForceStopOnPrepare': {
+            Type: bool,
+            Description: 'Some detectors plugins like Eiger2 after the '
+                         'acquisition are in Ready but they need to receive the '
+                         'stop command to do a new acquisition',
+            DefaultValue: False
         }
     }
 
@@ -323,7 +330,7 @@ class LimaCtrlMixin(object):
                 and nb_starts > 1:
             self._synchronization = self._start_trigger_map[self._synchronization]
         lima = self._lima
-        if lima["acq_status"] != "Ready":
+        if lima["acq_status"] != "Ready" or self.ForceStopOnPrepare:
             lima("stopAcq")
         latency_time = self.calc_latency(latency_time)
         trigger_mode = self.calc_trigger_mode()
